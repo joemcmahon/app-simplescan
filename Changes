@@ -1,4 +1,11 @@
 Revision history for App-SimpleScan
+1.21  Thu Aug 24 17:07:20 PDT 2006
+	- enable dynamic creation of variable *names*
+          %%foo bar baz
+          %%<foo>_value "is <foo>"
+          
+          # Defines <bar_value> as "is bar" and <baz_value> as "is baz"
+
 1.20  Wed Aug 23 13:58:31 PDT 2006
 	- worked out the funky kinks in nested substitutions by a major 
 	  simplification of the substitution logic. 

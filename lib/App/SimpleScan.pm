@@ -1,6 +1,6 @@
 package App::SimpleScan;
 
-our $VERSION = '1.09';
+our $VERSION = '1.10';
 $|++;
 
 use warnings;
@@ -18,7 +18,8 @@ use Text::Balanced qw(extract_quotelike extract_multiple);
 
 my $reference_mech = new WWW::Mechanize::Pluggable;
 
-use Module::Pluggable earch_path => [qw(App::SimpleScan::Plugin)];
+
+use Module::Pluggable search_path => [qw(App::SimpleScan::Plugin)];
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(tests test_count));
@@ -77,9 +78,12 @@ sub new {
   $self->{InputQueue} = [];
   $self->{PragmaDepend} = {};
 
-  binmode(STDIN);
-
   $self->handle_options;
+
+  # Enable UTF-8 encoding on all filehandles.
+  #binmode(STDOUT, ":utf8");
+  #binmode(STDERR, ":utf8");
+  #binmode(STDIN,  ":utf8");
 
   return $self;
 }
@@ -222,9 +226,7 @@ sub transform_test_specs {
 # this lets them load that module so the
 # tests actually work.)
 #
-# Also adds the test plan and the array we use
-# to capture accented characters (we should be
-# able to dump this kludge soon...)
+# Also adds the test plan.
 #
 # Finally, initializes the user agent (unless
 # we're specifically directed *not* to do so).
@@ -242,7 +244,6 @@ sub finalize_tests {
       "use Test::WWW::Simple;\n",
       "use strict;\n",
       "\n",
-      "my \@accent;\n",
     );
   
   # Handle conditional user agent initialization.

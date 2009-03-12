@@ -24,7 +24,6 @@ use Test::More tests=>0;
 use Test::WWW::Simple;
 use strict;
 
-my \@accent;
 mech->agent_alias('Windows IE 6');
 ${have_cache_plugin}cache();
 
@@ -38,7 +37,6 @@ use Test::More tests=>0;
 use Test::WWW::Simple;
 use strict;
 
-my \@accent;
 mech->agent_alias('Windows IE 6');
 ${have_cache_plugin}$no();
 

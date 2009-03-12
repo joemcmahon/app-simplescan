@@ -1,4 +1,4 @@
-use 5.006;
+use 5.008;
 use strict;
 use warnings;
 use ExtUtils::MakeMaker;
@@ -20,7 +20,7 @@ WriteMakefile(
         'WWW::Mechanize::Pluggable' => '0.09',
         'Text::Balanced'       => '1.95',
         'IO::ScalarArray'      => '2.110',
-
+        'Encode'               => 0,
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'App-SimpleScan-*' },

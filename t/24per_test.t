@@ -10,7 +10,6 @@ use Test::More tests=>4;
 use Test::WWW::Simple;
 use strict;
 
-my \@accent;
 mech->agent_alias('Windows IE 6');
 page_like "http://asia.yahoo.com/",
           qr/yahoo/,
@@ -35,7 +34,6 @@ use Test::More tests=>4;
 use Test::WWW::Simple;
 use strict;
 
-my \@accent;
 # Adding test expansion comment
 mech->agent_alias('Windows IE 6');
 page_like "http://asia.yahoo.com/",

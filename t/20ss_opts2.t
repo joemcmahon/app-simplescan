@@ -8,7 +8,6 @@ use Test::More tests=>1;
 use Test::WWW::Simple;
 use strict;
 
-my \@accent;
 mech->agent_alias('Windows IE 6');
 page_like "http://sample.org/bar",
           qr/quux/,
@@ -21,7 +20,6 @@ use Test::More tests=>1;
 use Test::WWW::Simple;
 use strict;
 
-my \@accent;
 mech->agent_alias('Windows IE 6');
 page_like "http://sample.org/bar",
           qr/quux/,
@@ -33,7 +31,6 @@ use Test::More tests=>1;
 use Test::WWW::Simple;
 use strict;
 
-my \@accent;
 mech->agent_alias('Windows IE 6');
 page_like "http://sample.org/bar",
           qr/quux/,
@@ -45,7 +42,6 @@ use Test::More tests=>1;
 use Test::WWW::Simple;
 use strict;
 
-my \@accent;
 mech->agent_alias('Windows IE 6');
 page_like "http://sample.org/boing",
           qr/quux/,
@@ -57,7 +53,6 @@ use Test::More tests=>1;
 use Test::WWW::Simple;
 use strict;
 
-my \@accent;
 mech->agent_alias('Windows IE 6');
 page_like "http://sample.org/boing",
           qr/splat/,
@@ -69,7 +64,6 @@ use Test::More tests=>1;
 use Test::WWW::Simple;
 use strict;
 
-my \@accent;
 mech->agent_alias('Windows IE 6');
 diag "Substitution foo not altered to 'bar'";
 diag "Substitution baz not altered to 'quux'";

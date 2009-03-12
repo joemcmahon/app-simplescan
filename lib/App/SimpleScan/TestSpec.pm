@@ -1,13 +1,11 @@
 package App::SimpleScan::TestSpec;
 use base qw(Class::Accessor::Fast);
 use Regexp::Common;
-use bytes;
-
 use strict;
 
 our $VERSION = "0.19";
 
-__PACKAGE__->mk_accessors(qw(raw uri regex delim kind comment metaquote syntax_error accented flags test_count));
+__PACKAGE__->mk_accessors(qw(raw uri regex delim kind comment metaquote syntax_error flags test_count));
 
 my $app;     # Will store a reference to the parent App::Simplescan
 
@@ -70,7 +68,6 @@ sub new {
 
   # Store the test spec.
   $self->raw($spec);
-  $self->accented({});
   $self->test_count(0);
   $self->syntax_error(!$self->parse);
 
@@ -140,17 +137,6 @@ sub parse {
   }
   $self->flags("") unless defined $self->flags;
 
-  # Handle accented chars if any.
-  my $match_var = "0";
-  my %accents;
-  $regex = $self->regex();
-  while (my($accented) = ($regex =~ /([\x80-\xff])/)) {
-    $regex =~ s/[\x80-\xff]/(.|..)/;
-    $accents{$match_var++} = $accented;
-  }
-  $self->accented(\%accents);
-  $self->regex($regex) if keys %accents;
-
   # If we got this far, it's valid.
   return 1;
 }
@@ -189,7 +175,6 @@ sub as_tests {
   my $flags = $self->flags() || "";
   my $uri = $self->uri;
 
-  my %accents = %{$self->accented};
   if (defined $uri and
       defined (my $regex =   $self->regex) and
       defined (my $delim =   $self->delim) and
@@ -206,27 +191,6 @@ sub as_tests {
        }
        $tests[$current] =~ s/<flags>/$flags/g;
        $tests[$current] =~ s/<comment>/$comment/;
-       my $accent_tests = 0;
-       if (keys %accents) {
-         push @tests, qq(\@accent = (mech->content =~ @{[$self->_render_regex]});\n);
-         for my $accent (keys %accents) {
-           $accent_tests++;
-           # Keys are which variable we should expect the 
-           # accented character in; values are the expected
-           # character.
-           if ($accent_tests == 1) {
-             # Keep the first test associated with its setup code.
-             $tests[-1] .= qq[is \$accent[$accent], "] . $accents{$accent} .
-                           qq[", "Accent char $accent as expected";\n];
-           }
-           else {
-             # subseqent tests stand on their own.
-             push @tests, qq[is \$accent[$accent], "] . $accents{$accent} .
-                          qq[", "Accent char $accent as expected";\n];
-           }
-           $self->test_count($self->test_count()+1);
-         }
-       }
     }
   }
 

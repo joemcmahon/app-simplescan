@@ -8,4 +8,4 @@ is @output, 6, "No loop over non-substituted line";
 
 @output = `$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan --gen <examples/ss_multisub.in`;
 ok @output, "got output"; 
-is @output, 19, "No multiple substitution problems";
+is @output, 18, "No multiple substitution problems";

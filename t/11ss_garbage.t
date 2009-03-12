@@ -12,7 +12,6 @@ use Test::More tests=>0;
 use Test::WWW::Simple;
 use strict;
 
-my \@accent;
 mech->agent_alias('Windows IE 6');
 # This is a file of garbage.
 # Possible syntax error in this test spec
@@ -35,7 +34,6 @@ use Test::More tests=>1;
 use Test::WWW::Simple;
 use strict;
 
-my \@accent;
 mech->agent_alias('Windows IE 6');
 page_like "http://perl.org/",
           qr/perl/,

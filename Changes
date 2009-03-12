@@ -1,5 +1,21 @@
 Revision history for App-SimpleScan
 
+1.02  Mon Apr 10 09:51:38 PDT 2006
+	- Initial upload failed; trying again
+
+1.01  Fri Mar 31 13:06:43 PST 2006
+	- Changed shebang line to use /usr/bin/env
+	  (not /home/y, d'oh).
+
+1.00  Fri Mar 17 12:25:43 PST 2006
+	- New interfaces deserve a full version update.
+	- current_line method added to allow plugins to
+	  spy on the input line if they want to.
+	- All plugins now converted to use output filters
+	  instead of hooking stack_test.
+        - More documentation of the base simple_scan 
+          program.
+
 0.34  Mon Mar 13 16:21:56 PST 2006
 	- totally reorganized variable substitution to fix
 	  nested variable substitution problems; variable

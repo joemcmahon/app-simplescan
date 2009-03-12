@@ -1,10 +1,12 @@
-#!/home/y/bin/perl -w
+#!/usr/bin/env perl
 use strict;
+use warnings;
+
 use Getopt::Long;
 use Test::Harness;
 use Test::Harness::Iterator;
 
-our $VERSION = "0.03";
+our $VERSION = "1.01";
 
 # This is an example of how to write your own harness using 
 # Test::Harness::Straps.  It duplicates most of the features of 

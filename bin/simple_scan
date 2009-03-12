@@ -1,8 +1,8 @@
-#!/usr/local/bin/perl
+#!/usr/bin/env perl
 use warnings;
 use strict;
 
-our $VERSION = "0.3";
+our $VERSION = "1.01";
 
 use App::SimpleScan;
 
@@ -41,18 +41,47 @@ App::SimpleScan - Mini-language for website testing
 
 =head1 DESCRIPTION
 
+C<simple_scan> is an extensible "little language" for static web page 
+testing. It allows you to define tests in terms of I<test specs> (which
+tell C<simple_scan> where to go and what to look for there) and I<pragmas>
+(which define string substitutions, or alter the way that C<simple_scan>
+runs its tests). 
+
+C<simple_scan> is designed to be easy to use. If you know where your page
+is (what URL) and can write a basic regular expression to match text on 
+that page, you can use C<simple_scan>. 
+
+C<simple_scan> itself is based on a I<pluggable> Perl class; more
+sophisticated users can install plugins to extend the language itself,
+or even the command-line options that the C<simple_scan> command accepts.
+
+Low-level access to web pages is done via C<WWW::Mechanize::Pluggable>
+and C<Test::WWW::Simple>, so it's even possible to build new methods to
+access your data into the language by writing plugins for Mech and
+C<simple_scan>.
+
+C<simple_scan> is meant to be a I<simple> web testing language, so it
+doesn't implement any control structures. You declare what tests are to
+be run, and C<simple_scan> then runs them all, telling you at the end
+which tests passed and which didn't. It uses TAP (Test Anything
+Protocol) to report on the tests, meaning that any C<Test::Harness>-based
+program can read and interpret the output.
+
+=head1 BASICS
+
 C<simple_scan> reads either files supplied on the command line, or standard
 input. It creates and runs, or prints, or even both, a L<Test::WWW::Simple>
 test for the criteria supplied to it.
 
-C<simple_scan>'s input should be in the following format:
+C<simple_scan>test specs should be in the following format, starting in
+column 1:
 
   <URL> <pattern> <Y|N> <comment>
 
 The I<URL> is any URL; I<pattern> is a Perl regular expression, delimited by
 slashes; I<Y|N> is C<Y> if the pattern should match, or C<N> if the pattern 
 should B<not> match; and I<comment> is any arbitrary text you like (as long 
-as it's all on the same line as everything else). 
+as it's all on the same line as everything else).
 
 C<simple_scan>will do its best to try to interpret your pattern; if it can't
 parse it as a regular expression, it will assume you meant to match against
@@ -60,7 +89,7 @@ a literal character string instead; so a pattern like
 
    /<b>this</b>/
 
-Would be interpreted as the literal string "<b>this</b>".
+would be interpreted as the literal string "<b>this</b>".
 
 =head1 COMMAND-LINE SWITCHES
 
@@ -169,9 +198,10 @@ lazy, you can even leave out the colon.
 Any pragma that's otherwise unrecognized by C<simple_scan> is treated as a 
 substitution. Substitutions assume that you have a name and a set of strings
 following it; these strings wil be substituted into the test specs occuring
-between this (set) of substitutions and the next (set).
+between this set of substitutions and the next set. Any variables not
+redefined will continue to have their old values.
 
-Here's an example. 
+Here's a basic example. 
 
    %% user dconway chromatic petdance
    %% use_perl_id Ovid pemungkah
@@ -187,7 +217,7 @@ substitutions in that line, it would only be evaluated once.
 
 Substitutions can occur anywhere in the line, including in the comment.
 
-This pragma allows for very simple-minded internationalization. For instance,
+Here's another example: internationalization. For instance,
 let's assume that you want to substitute each of a list of two-character 
 country codes into a string (most likely somewhere in the URL, but possibly 
 in the comment too). 
@@ -196,17 +226,35 @@ C<simple_scan> will do this for you, creating a test for each country code
 you specify. For instance:
 
    %%xx: es au my jp
-   http://>xx<.mysite.com/     /blargh/  Y  look for blargh (>xx<)
+   http://<xx>.mysite.com/     /blargh/  Y  look for blargh (<xx>)
 
 This would generate 4 tests, for C<es.mysite.com>, C<au.mysite.com>, 
 c<my.mysite.com>, and C<jp.mysite.com>, all looking to match C<blargh> 
 somewhere on the page.
 
+=head2 Multiple substitutions in a single line
+
+If you define multiple variables and use them in a test spec, 
+C<simple_scan> will create all of the unique combinations of the
+values and substitute them into your test spec. For example:
+
+%%foo bar baz
+%%quux zorch thud
+http://<foo>.yoursite.com?zz=<quux> /Search found/ Y check <quux> search
+
+would generate all four alternatives and run tests for each one:
+
+http://bar.yoursite.com?zz=zorch /Search found/ Y check zorch search
+http://baz.yoursite.com?zz=zorch /Search found/ Y check zorch search
+http://bar.yoursite.com?zz=thud  /Search found/ Y check thud search
+http://baz.yoursite.com?zz=thud  /Search found/ Y check thud search
+
+This makes it very easy to generate many tests from very few input lines.
+
 =head2 Nested substitutions
 
-As of version 0.31 of C<App::SimpleScan>, substitutions can actually
-reference other substitutions, so something like this is now
-possible:
+Substitutions can also reference other substitutions, so something 
+like this is also possible:
 
 %%mirror blonk whiz thud crunch
 %%welcome_msg 'Welcome to <mirror>'
@@ -215,6 +263,18 @@ http://<mirror>.yoursite.org/ /<welcome_msg>/ Y <mirror> welcome
 When the test spec is expanded, the string 'Welcome to <mirror>'
 is substituted in first, then the test spec is expanded again to
 create a test for each one of the mirrors.
+
+Note that at present, checking for circular substitutions is not
+yet complete; if you write something like this:
+
+%%foo <bar>
+%%bar <foo>
+http://<foo>.com /check/ Y  Infinite loop
+
+C<simple_scan> will substitute "<bar>" for "<foo>, then "<foo>"
+for "<bar>", and will continue to happily do so until you kill 
+the process. At the moment, try not to do this; we'll have a fix
+in an upcoming release.
 
 =head2 Single-quotes, double-quotes, and backticks
 
@@ -268,17 +328,23 @@ like this:
 Now setting the enviroment variable C<LANGUAGE> in your shell to 'perl'
 will propagate 'perl' into the test spec as the language we're testing for.
 
+=head1 OTHER PRAGMAS DEFINED BY SIMPLE_SCAN
 
+There are a few other pragmas defined directly by C<simple_scan>. These
+are not plugins, but are implemented directly in the code.
 
 =head2 agent
 
 The C<agent> pragma allows you to switch user agents during the test. 
 C<Test::WWW::Simple>'s default is C<Windows IE 6>, but you can switch it
-to any of the other user agents supported by C<WWW::Mechanize>.
+to any of the other user agent aliases supported by C<WWW::Mechanize>.
 
    http://gemal.dk/browserspy/basic.html /Explorer/ Y Should be Explorer
    %%agent: Mac Safari
    http://gemal.dk/browserspy/basic.html /Safari/ Y Should be Safari
+
+(Note: gemal.dk actually does tell you what browser you're running, so
+feel free to try this test yourself.)
 
 =head2 cache
 
@@ -287,7 +353,7 @@ on the I<first> access to a URL is returned directly from a memory cache,
 without its being reaccessed from the Web.
 
 Using C<cache> can result in major speedups for tests which repeatedly
-hit the same page.
+hit the same page. 
 
 =head2 nocache
 
@@ -295,13 +361,22 @@ The C<nocache> pragma turns I<off> URL caching; this is useful if you
 have something like a REST interface that may return different values 
 from repeated accesses to the same URL.
 
+=head1 BUGS AND LIMITATIONS
+
+Substitutions, especially when there are large numbers of variables 
+with multiple values, are slow. (Welcome to the world of combinatory
+explosion.) A future release should use the dependency tree we're 
+going to need anyway to detect circular references to eliminate 
+variables that cannot possibly be substituted into the current 
+string, thereby decreasing the load on the combination checker.
+
 =head1 AUTHOR
 
 Joe McMahon E<lt>mcmahon@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2005 by Yahoo!
+Copyright (c) 2005, 2006 by Yahoo!
 
 This script is free software; you can redistribute it or modify it under the
 same terms as Perl itself, either Perl version 5.6.1 or, at your option, any

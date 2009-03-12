@@ -1,4 +1,9 @@
 Revision history for App-SimpleScan
+1.22  Wed Aug 30 17:10:33 PDT 2006
+	- fix suble-quote expansion to work as expected
+	  (variables inside double-quotes are now expanded, and *all*
+          of the possible values of the expression are returned.
+
 1.21  Thu Aug 24 17:07:20 PDT 2006
 	- enable dynamic creation of variable *names*
           %%foo bar baz

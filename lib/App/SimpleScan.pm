@@ -4,7 +4,7 @@ use warnings;
 use strict;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.21';
+our $VERSION = '1.22';
 
 use Carp;
 use Getopt::Long;
@@ -350,7 +350,9 @@ sub expand_backticked {
     }
     # Double-quoted: eval it.
     elsif (/^"(.*)"$/mx) {
-      push @result, eval($1);                               ##no critic
+      my $to_be_evaled = $1;
+      my @substituted = @{ $self->_substitute($to_be_evaled, $self->_find_substitutions($to_be_evaled)) };
+      push @result, map { eval $_ } @substituted;          ##no critic
     }
     # Single-quoted: remove quotes.
     elsif (/^'(.*)'$/mx) {
@@ -425,9 +427,8 @@ sub _find_substitutions {
     my $var = shift @vars;
     my @nested_vars = $self->_find_substitutions($var);
     if (@nested_vars) {
-      foreach my $nested_var (@nested_vars) {
-        $expanded_vars{$nested_var}++; 
-      }
+      # There were nested vars. Queue then for possible reprocessing.
+      push @vars, @nested_vars;
     }
     else {
       # Simple variable. Save it. 

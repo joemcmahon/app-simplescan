@@ -3,12 +3,14 @@ bin/simple_report
 bin/simple_scan
 bin/simple_scan.yahoo
 Changes
+examples/expression.in
 examples/ss.in
 examples/ss_backtick1.in
 examples/ss_backtick_env.in
 examples/ss_blank.in
 examples/ss_comment.in
 examples/ss_country.in
+examples/ss_dynamvar.in
 examples/ss_escaped.in
 examples/ss_extpattern.in
 examples/ss_fail.in
@@ -71,6 +73,8 @@ t/39backslash.t
 t/40inputq.t
 t/41extract.t
 t/42nested_sub.t
+t/43dynamname.t
+t/44expression.t
 t/App/SimpleScan/Plugin/TestExpand.pm
 t/App/SimpleScan/Plugin/TestNextLine.pm
 t/critic.t

@@ -1,6 +1,6 @@
 package App::SimpleScan;
 
-our $VERSION = '0.29';
+our $VERSION = '0.30';
 use 5.006;
 
 use warnings;
@@ -637,10 +637,21 @@ its argument, and will increment the test count by one. You
 should use multiple calls to C<stack_test> if you need
 to stack more than one test.
 
+=item * per_test()
+
 If a pragma wants to stack code that will be emitted for
 every test, it should implement a  C<per_test> method.
 This will be called by C<App::SimpleScan::TestSpec> for
 every testspec processed.
+
+Code to be emitted I<before> the current test should
+be emitted via calls to C<stack_code> and C<stack_test>.
+
+Code to be emitted I<after> the current test should be
+Ireturned> to the caller,along with a count indicating 
+how many tests are included in the returned code. You
+can return zero to indicate that none of the returned
+code is tests.
 
 =back
 

@@ -5,7 +5,7 @@ use bytes;
 
 use strict;
 
-our $VERSION = "0.18";
+our $VERSION = "0.19";
 
 __PACKAGE__->mk_accessors(qw(raw uri regex delim kind comment metaquote syntax_error accented flags test_count));
 
@@ -244,9 +244,12 @@ sub as_tests {
   for my $test_code (@generated) {
     push @merged, $test_code;
     for my $plugin ($app->plugins) {
-      push @merged, 
-        $plugin->per_test($self)
-          if $plugin->can('per_test');
+      next if ! $plugin->can('per_test');
+
+      my ($added_tests, @per_test_code) = $plugin->per_test($self);
+      push @merged, @per_test_code;
+      $self->test_count( $self->test_count() + $added_tests )
+        if $added_tests;
     }
   }
   return $self->test_count(),@merged;

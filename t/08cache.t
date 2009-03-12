@@ -6,6 +6,9 @@ ok((scalar @output), "got output");
 my $expected = <<EOS;
 use Test::More tests=>0;
 use Test::WWW::Simple;
+use strict;
+
+my \@accent;
 cache();
 
 EOS
@@ -16,6 +19,9 @@ ok((scalar @output), "got output");
 $expected = <<EOS;
 use Test::More tests=>0;
 use Test::WWW::Simple;
+use strict;
+
+my \@accent;
 no_cache();
 
 EOS

@@ -1,4 +1,4 @@
-use Test::More tests=>14;
+use Test::More tests=>20;
 
 BEGIN {
   use_ok(qw(App::SimpleScan));
@@ -29,6 +29,17 @@ is $spec->delim, "|", "proper delimiter";
 is $spec->uri, "http://search.yahoo.com/", "right URI";
 is $spec->kind, "TY", "right kind";
 is $spec->comment, "/No comment/", "right comment";
+ok !$spec->metaquote, "right metaquoting";
+
+$spec = 
+  new App::SimpleScan::TestSpec("http://search.yahoo.com/ m|yahoo</b>| TY");
+
+$spec->parse;
+is $spec->regex, "yahoo</b>", "right regex data";
+is $spec->delim, "|", "proper delimiter";
+is $spec->uri, "http://search.yahoo.com/", "right URI";
+is $spec->kind, "TY", "right kind";
+is $spec->comment, "", "right comment";
 ok !$spec->metaquote, "right metaquoting";
 
 

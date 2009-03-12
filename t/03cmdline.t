@@ -21,7 +21,6 @@ foreach my $argset (@cmds) {
   my %results = %$resultset;
   local @ARGV = @$arglist;
   my $app = new App::SimpleScan;
-  $app->handle_options;;
   for my $method (qw(run generate warn)) {
     is ${$app->$method}, $results{$method}, "$method (@{$arglist})"; 
   }

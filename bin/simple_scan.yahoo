@@ -1,8 +1,6 @@
-#!/usr/local/bin/perl
+#!/home/y/bin/perl
 use warnings;
 use strict;
-
-our $VERSION = "0.3";
 
 use App::SimpleScan;
 
@@ -87,67 +85,6 @@ This option is useful to build up a test suite to be reused later.
 Both C<-r> and C<-g> can be specified at the same time to run a test and print 
 it simultaneously; this is useful when you want to save a test to be run later 
 as well as right now without having to regenerate the test.
-
-=over 4
-
-=item C<--define>
-
-C<--define> allows you to predefine substitutions to be used during a 
-C<simple_scan> run. To define a substitution, use this syntax:
-
-  --define foo=bar --define baz="one two three"
-
-The first example defines a single substitution; the second defines a
-multiple substitution. In conjunction with C<--override>, C<--define>
-can make C<simple_scan> ignore any definitions for variables in the
-C<simple_scan> input file. Conversely, if C<--defer> is specified, 
-any definitions on the command line will be altered if a definition
-for the variable is found in the input file.
-
-Note that C<%%forget> can still make C<simple_scan> forget a definition 
-(if C<App::SimpleScan::Plugin::Forget> is installed).
-
-Also note that you define a variable with multiple values like this:
-
-  --define foo="bar baz quux"
-
-butB<not> like this:
-
-  --define foo=bar --define foo=baz --define foo=quux
-
-since multiple definitions of a single substitution use only the
-I<last> substitution defined; the example directly above (with
-the three "--define" entries) defines "foo" as "quux" and only 
-as "quux".
-
-=item C<--override>
-
-Makes any definitions entered on the command line override definitions 
-found in the input file.
-
-=item C<--defer>
-
-Makes any definitions entered on the command line defer to defintions
-found in the input file - the variables in question will be redefined 
-by the command file.
-
-=item C<--debug>
-
-Enables debugging for you C<simple_scan> input file; this outputs a 
-lot of extra code which, when executed by C<simple_scan --run>, shows
-a lot more information as to what actually happened.
-
-Currently, the only extra debugging information is a list of variables
-which were I<not> altered by substitution pragmas when C<--override>
-was specified on the command line.
-
-=item C<--autocache>
-
-Turns on caching immediately, whether or not the input file specifies
-C<%%cache> or not. Note that a C<%%nocache> in the input file will 
-turn caching I<off> again. 
-
-=back
 
 =head1 PRAGMAS
 

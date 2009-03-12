@@ -1,5 +1,6 @@
 .cvsignore
 bin/simple_scan
+bin/simple_scan.yahoo
 Changes
 examples/ss.in
 examples/ss_blank.in
@@ -11,6 +12,7 @@ examples/ss_garbage1.in
 examples/ss_garbage2.in
 examples/ss_newbracket.in
 examples/ss_nodouble.in
+examples/ss_over_defer.in
 examples/ss_user_agent.in
 lib/App/SimpleScan.pm
 lib/App/SimpleScan/TestSpec.pm
@@ -37,5 +39,10 @@ t/16ss_fails.t
 t/17ss_works.t
 t/18ss_intl.t
 t/19ss_accent.t
+t/20ss_opts2.t
+t/21todoskip.t
+t/22specplugin.t
+t/23autocache.t
 t/pod-coverage.t
 t/pod.t
+t/App/SimpleScan/Plugin/Tester.pm

@@ -10,6 +10,6 @@ can_ok $app, qw(new go transform_test_specs
                 handle_options app_defaults
                 install_options parse_command_line 
                 install_pragma_plugins
-                _pragma  _do_agent _stack_code _stack_test
+                _pragma  _do_agent stack_code stack_test
                 finalize_tests );
 

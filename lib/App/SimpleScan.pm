@@ -1,6 +1,6 @@
 package App::SimpleScan;
 
-our $VERSION = '0.02';
+our $VERSION = '0.17';
 use 5.006;
 
 use warnings;
@@ -38,10 +38,15 @@ sub new {
   my $self = {};
   $self->{Substitution_data}= {};
   bless $self, $class;
+  $self->_load_plugins();
+
   App::SimpleScan::TestSpec->app($self);
   $self->tests([]);
-  $self->_substitution_data("agent", "Windows IE 6");
   binmode(STDIN);
+
+  $self->handle_options;
+
+  $self->_do_substitution("agent", "Windows IE 6");
 
   return $self;
 }
@@ -50,13 +55,17 @@ sub create_tests {
   my ($self) = @_;
 
   $self->test_count(0);
-  $self->tests([]);
 
-  $self->handle_options;
   $self->install_pragma_plugins;
   $self->transform_test_specs;
   $self->finalize_tests;
   return join("", @{$self->tests});
+}
+
+sub execute {
+  my ($self, $code) = @_;
+  eval $code if ${$self->run};
+  return $@;
 }
 
 sub go {
@@ -67,15 +76,14 @@ sub go {
   # Note the dereference of the scalars here.
 
   if ($self->test_count) {
-    eval $code if ${$self->run};
-    if ($@) {
-       warn $@,"\n";
+    if (my $result = $self->execute($code)) {
+       warn $result,"\n";
        $exit_code = 1;
     }
   } 
   else {
     if (${$self->warn}) {
-      warn "# No tests were found in your input file.\n";
+      $self->stack_test(qq(fail "No tests were found in your input file.\n"));
       $exit_code = 1;
     }
   }
@@ -119,11 +127,17 @@ sub transform_test_specs {
                      
     }
     else {
-      my @generated = $item->as_tests;
+      my ($count, @generated) = $item->as_tests;
       $self->tests([@{$self->tests}, @generated]);
-      $self->test_count($self->test_count+(int @generated));
+      $self->test_count($self->test_count+($count));
     }
   }
+}
+
+sub _delete_substitution {
+  my ($self, $pragma_name) = @_;
+  delete $self->{Substitution_data}->{$pragma_name};
+  return;
 }
 
 sub _substitutions {
@@ -132,43 +146,102 @@ sub _substitutions {
     if defined $self->{Substitution_data};
 }
 
-sub _substitution_data {
+sub _do_substitution {
   my ($self, $pragma_name, @pragma_values) = @_;
   die "No pragma specified" unless defined $pragma_name;
   if (@pragma_values) {
     $self->{Substitution_data}->{$pragma_name} = \@pragma_values;
   }
-  wantarray ? @{$self->{Substitution_data}->{$pragma_name}}
-            : $self->{Substitution_data}->{$pragma_name};
+  return 
+    wantarray ? @{$self->{Substitution_data}->{$pragma_name}}
+              : $self->{Substitution_data}->{$pragma_name};
+}
+
+sub _substitution_data {
+  my ($self, $pragma_name, @pragma_values) = @_;
+  die "No pragma specified" unless defined $pragma_name;
+
+  if (@pragma_values) {
+    if (${$self->override} and $self->{Predefs}->{$pragma_name}) {
+      $self->stack_code(qq(diag "Substitution $pragma_name not altered to '@pragma_values'";\n))
+        if ${$self->debug};
+    }
+    else {
+      $self->_do_substitution($pragma_name, @pragma_values);
+    }
+  }
+  else {
+    $self->_do_substitution($pragma_name);
+  }
+  return 
+    wantarray ? @{$self->{Substitution_data}->{$pragma_name}}
+              : $self->{Substitution_data}->{$pragma_name};
 }
 
 sub handle_options {
   my ($self) = @_;
 
   # Variables and setup for basic command-line options.
-  my($generate, $run, $warn);
+  my($generate, $run, $warn, $override, $defer, $debug);
+  my($cache_from_cmdline);
 
   my %basic_options = 
-    ('generate' => \$generate,
-     'run'      => \$run,
-     'warn'     => \$warn);
+    ('generate'  => \$generate,
+     'run'       => \$run,
+     'warn'      => \$warn,
+     'override'  => \$override,
+     'defer'     => \$defer,
+     'debug'     => \$debug,
+     'autocache' => \$cache_from_cmdline,
+    );
 
   # Handle options, including ones from the plugins.
   $self->install_options(%basic_options);
 
+  # The --define option has to be handled slightly differently.
+  # We set things up so that we have a hash of predefined variables
+  # in the object; that way, we can set them up appropriately, and
+  # know whether or not they should be checked for override/defer
+  # when a definition is found in the simple_scan input file.
+  $self->{Options}->{'define=s%'} = ($self->{Predefs} = {});
+
   foreach my $plugin (__PACKAGE__->plugins) {
     $self->install_options($plugin->options)
-      if $plugin->can(qw(options));
+      if $plugin->can('options');
   }
+
   $self->parse_command_line;
+
+  foreach my $plugin (__PACKAGE__->plugins) {
+    $plugin->validate_options() if
+      $plugin->can('validate_options');
+  }
+
+  # If anything was predefined, save it in the substitutions.
+  for my $def (keys %{$self->{Predefs}}) {
+    $self->_do_substitution($def, 
+                            (split /\s+/, $self->{Predefs}->{$def}));
+  }
   $self->app_defaults;
 }
 
 sub app_defaults {
   my ($self) = @_;
-  # Assume run if no flags at all.
-  return if defined ${$self->generate()};
-  $self->run(\1);
+  # Assume --run if neither --run nor --generate.
+  if (!defined ${$self->generate()} and
+      !defined ${$self->run()}) {
+    $self->run(\1);
+  }
+
+  # Assume --defer if neither --defer nor --override.
+  if (!defined ${$self->defer()} and
+      !defined ${$self->override()}) {
+    $self->defer(\1);
+  }
+
+  # if --cache was supplied, turn caching on.
+  $self->stack_code(qq(cache;\n))
+    if ${$self->autocache};
 }
 
 sub install_options {
@@ -211,6 +284,13 @@ sub install_options {
   }
 }
 
+sub _load_plugins {
+  my($self) = @_;
+  foreach my $plugin (__PACKAGE__->plugins) {
+    eval "use $plugin";
+    $@ and die "Plugin $plugin failed to load: $@\n";
+}
+
 sub parse_command_line {
   my ($self) = @_;
   GetOptions(%{$self->{Options}});
@@ -221,16 +301,15 @@ sub install_pragma_plugins {
 
   foreach my $plugin (@local_pragma_support, 
                       __PACKAGE__->plugins) {
-     if (ref $plugin eq 'ARRAY') {
-       $self->_pragma(@$plugin);
-     }
-     else {
-       eval "use $plugin";
-       $@ and die "Plugin $plugin failed to load: $@\n";
-       foreach my $pragma_spec ($plugin->pragmas) {
-         $self->_pragma(@$pragma_spec);
-       }
-     }
+    if (ref $plugin eq 'ARRAY') {
+      $self->_pragma(@$plugin);
+    }
+    elsif ($plugin->can('pragmas')) {
+        foreach my $pragma_spec ($plugin->pragmas) {
+          $self->_pragma(@$pragma_spec);
+        }
+      }
+    }
   }
 }
 
@@ -250,30 +329,34 @@ sub _do_agent {
   $maybe_agent = reverse $maybe_agent; 
   $self->_substitution_data("agent", $maybe_agent)
     if grep { $_ eq $maybe_agent } $reference_mech->known_agent_aliases;
-  $self->_stack_code(qq(user_agent("$maybe_agent");\n));
+  $self->stack_code(qq(user_agent("$maybe_agent");\n));
 }
 
 sub _do_cache {
   my ($self,$rest) = @_;
-  $self->_stack_code("cache();\n");
+  $self->stack_code("cache();\n");
 }
 
 sub _do_nocache {
   my ($self,$rest) = @_;
-  $self->_stack_code("no_cache();\n");
+  $self->stack_code("no_cache();\n");
 }
 
-sub _stack_code {
+sub stack_code {
   my ($self, @code) = @_;
   my @old_code = @{$self->tests};
   $self->tests([@old_code, @code]);
 }
 
-sub _stack_test {
+*__PACKAGE__::_stack_code = \&stack_code;
+
+sub stack_test {
   my($self, @code) = @_;
-  $self->_stack_code(@code);
+  $self->stack_code(@code);
   $self->test_count($self->test_count()+1);
 }
+
+*__PACKAGE__::_stack_test = \&stack_test;
 
 sub finalize_tests {
   my ($self) = @_;
@@ -286,6 +369,9 @@ sub finalize_tests {
     (
       "use Test::More tests=>" . $self->test_count . ";\n",
       "use Test::WWW::Simple;\n",
+      "use strict;\n",
+      "\n",
+      "my \@accent;\n",
     );
   $self->tests([@tests]);
 }
@@ -373,6 +459,14 @@ C<agent>) and any supplied by the plugins.
 
 Does all the work of transforming test specs into code.
 
+=head2 stack_code
+
+Adds code to the final output without incrementing the number of tests.
+
+=head2 stack_test
+
+Adds code to the final output and bumps the test count by one.
+
 =head2 finalize_tests
 
 Adds all of the Perl modules required to run the tests to the 
@@ -381,6 +475,11 @@ test code generated by this module.
 =head2 tests
 
 Accessor that stores the test code generated during the run.
+
+=head2 execute
+
+Actually run the generated test code. Currently just C<eval>'s
+the generated code.
 
 =head1 EXTENDING SIMPLESCAN
 

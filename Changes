@@ -1,5 +1,83 @@
 Revision history for App-SimpleScan
 
+0.17  Fri Nov 18 18:10:34 2005
+	- Added conditional callback to validate_options()
+	  in plugins; allows plugins to make sure that 
+	  command-line option values are indeed valid.
+
+0.16  Fri Nov 18 17:29:12 2005
+	- Moved plugin loading into separate private method
+	- made stack_tests and stack_code public methods
+	  since they were being used publically anyway
+	- aliased to _stack_code and _stack_tests until all
+	  plugins have time to catch up
+
+0.15  Fri Nov 18 13:39:34 2005
+	- Changed the per_test call in App::SimpleScan::Testspec
+	  to stack the code *after* the generated test. Note that
+	  if a per_test plugin really needs to stack code before
+          generated tests by calling _stack_code.
+
+0.14  Fri Nov 18 11:59:58 2005
+	- fixed plugin code to only call pragmas() if the plugin
+	  can('pragmas'); allows development of options-only plugins
+
+0.13  Thu Nov 17 17:52:43 2005
+	- added --autocache option: turn on caching at the beginning
+	  of a run
+
+0.12  Tue Nov  8 11:28:14 2005 
+	- More changes for accented characters. Now handles either
+          UTF-8 or Latin-1. 
+	- Eliminated double fetch for accented character tests.
+
+0.11  Wed Oct 26 16:15:52 2005
+	- Temporary fix for TODO test until I can figure out
+	  why I need to do it at the moment.
+
+0.10  Wed Oct 26 15:29:17 2005
+	- Extracted execution of tests into execute() method - 
+	  this will allow plugins to override the simple 'eval'
+	  with something more interesting
+	- fix a quoting error in TY and TN tests
+
+0.09  Wed Oct 26 14:48:27 2005
+	- Added --define, --override, --defer, and --debug switches
+	- debug is pretty preliminary, but the methods are there now
+	- can now define substitutions on the command line, and 
+	  choose to have them override or defer to substitutions
+	  in input files
+
+0.08  Wed Oct 26 11:37:45 2005
+	- Added _delete_substitution to support the %%forget pragma.
+
+0.07  Tue Oct 25 14:37:00 2005
+	- Changed match for accented characters to .*? instead
+	  of . to make it work consistently on 5.6
+
+0.06  Mon Oct 24 16:24:20 2005
+	- fixed "@accents" vs. "$accent[...}" in generated code
+
+0.05  Mon Oct 24 15:55:58 2005
+	- Added a missing semicolon on the generated code for the
+	  accent extraction line. 
+
+0.04  Mon Oct 24 14:42:38 2005
+	- changed 8-bit-character checks; test process seems to nuke
+	  the $1, $2, etc. variables, so I can't check them back in
+	  the tests itself. Now done via an array of matched-out 
+	  characters.
+	- Systematized test counting to make sure counts were right
+	- Tests now "use strict;"
+	- Regex flags handled properly
+	- _regex_render added to centralize regex fixups
+	- Removed duplicate bottm-out test in substitution recursion
+	- Updated tests
+
+0.03  Wed Oct 19 12:22:18 2005
+	- altered test spec parsing to properly handle missing comments
+	- added tests for this code
+
 0.02  Wed Oct 12 13:55:39 2005
 	- Fixed accented character cleanup - wasn't using the
           cleaned-up version of the regex

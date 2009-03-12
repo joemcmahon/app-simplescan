@@ -1,12 +1,13 @@
 package App::SimpleScan::TestSpec;
 use base qw(Class::Accessor::Fast);
 use Regexp::Common;
+use bytes;
 
 use strict;
 
-our $VERSION = "0.02";
+our $VERSION = "0.15";
 
-__PACKAGE__->mk_accessors(qw(raw uri regex delim kind comment metaquote syntax_error accented));
+__PACKAGE__->mk_accessors(qw(raw uri regex delim kind comment metaquote syntax_error accented flags test_count));
 
 my $app;     # Will store a reference to the parent App::Simplescan
 
@@ -14,44 +15,44 @@ my %test_type =
   (
     'Y' => <<EOS,
 page_like "<uri>",
-          qr<delim><regex><delim>,
-          "<comment> [<uri>] [<delim><regex><delim> should match]";
+          qr<delim><regex><delim><flags>,
+          "<comment> [<uri>] [<delim><regex><delim><flags> should match]";
 EOS
     'N' => <<EOS,
 page_unlike "<uri>",
-            qr<delim><regex><delim>,
-            "<comment> [<uri>] [<delim><regex><delim> shouldn't match]";
+            qr<delim><regex><delim><flags>,
+            "<comment> [<uri>] [<delim><regex><delim><flags> shouldn't match]";
 EOS
     'TY' => <<EOS,
 TODO: {
-  local \$TODO = 'Doesn't match now but should later';
+  local \$Test::WWW::Simple::TODO = "Doesn't match now but should later";
   page_like "<uri>",
-            qr<delim><regex><delim>,
-            "<comment> [<uri>] [<delim><regex><delim> should match]";
+            qr<delim><regex><delim><flags>,
+            "<comment> [<uri>] [<delim><regex><delim><flags> should match]";
 }
 EOS
     'TN' => <<EOS,
 TODO: {
-  local \$TODO = 'Matches now but shouldn't later';
+  local \$Test::WWW::Simple::TODO = "Matches now but shouldn't later";
   page_unlike "<uri>",
-              qr<delim><regex><delim>,
-              "<comment> [<uri>] [<delim><regex><delim> shouldn't match]";
+              qr<delim><regex><delim><flags>,
+              "<comment> [<uri>] [<delim><regex><delim><flags> shouldn't match]";
 }
 EOS
     'SY' => <<EOS,
 SKIP: {
   skip 'Deliberately skipping test that should match', 1; 
   page_like "<uri>",
-            qr<delim><regex><delim>,
-            "<comment> [<uri>] [<delim><regex><delim> should match]";
+            qr<delim><regex><delim><flags>,
+            "<comment> [<uri>] [<delim><regex><delim><flags> should match]";
 }
 EOS
     'SN' => <<EOS,
 SKIP: {
   skip "Deliberately skipping test that shouldn't match", 1; 
   page_unlike "<uri>",
-              qr<delim><regex><delim>,
-              "<comment> [<uri>] [<delim><regex><delim> shouldn't match]";
+              qr<delim><regex><delim><flags>,
+              "<comment> [<uri>] [<delim><regex><delim><flags> shouldn't match]";
 }
 EOS
   );
@@ -70,6 +71,7 @@ sub new {
   # Store the test spec.
   $self->raw($spec);
   $self->accented({});
+  $self->test_count(0);
   $self->syntax_error(!$self->parse);
 
   return $self;
@@ -115,45 +117,49 @@ sub parse {
   }
 
   # Remove comment and kind.
-  my ($comment, $kind, $maybe_regex) = 
-    ((scalar reverse $rest) =~ /^(.*?)\s+(Y|N|YT|NT|YS|NS)\s+(.*)$/);
+  my ($comment, undef, $kind, $maybe_regex) = 
+    ((scalar reverse $rest) =~ /^(.*?)(\s+|\s*)\b(Y|N|YT|NT|YS|NS)\s+(.*)$/);
   $self->comment(scalar reverse $comment);
   $self->kind(scalar reverse $kind);
   $self->uri($URI);
 
-  my($clean, $delim); 
+  my($clean, $delim, $flags); 
 
   # Clean up regex if needed.
   my $regex = reverse $maybe_regex;
-  if ((undef, undef, $clean, undef) = 
-       ($regex =~ m|^$RE{delimited}{-delim=>'/'}{-keep}$|)) {
+  if ((undef, undef, $clean, undef, $flags) = 
+       ($regex =~ m|^$RE{delimited}{-delim=>'/'}{-keep}([ics]*)$|)) {
     # Standard slash-delimited regex.
     $self->regex($clean);
     $self->delim("/");
+    $self->flags($flags);
   }
-  elsif (($delim, $clean) = ($regex =~ /^m(.)(.*)\1$/)) {
+  elsif (($delim, $clean, $flags) = ($regex =~ /^m(.)(.*)\1([ics]*)$/)) {
     # m-something-regex-something pattern.
     $self->delim($1);
     $self->regex($clean);
+    $self->flags($flags);
   }
-  elsif (($clean) = ($regex =~ m|^/(.*)/$|)) {
+  elsif (($clean, $flags) = ($regex =~ m|^/(.*)/([ics]*)$|)) {
     $self->delim("/");
     $self->regex($clean);
     $self->metaquote(1);
+    $self->flags($flags);
   }
   else {
     $self->delim("/");
     $self->regex($regex);
     $self->metaquote(1);
   }
+  $self->flags("") unless defined $self->flags;
 
   # Handle accented chars if any.
-  my $match_var = "1";
+  my $match_var = "0";
   my %accents;
   $regex = $self->regex();
   while (my($accented) = ($regex =~ /([\x80-\xff])/)) {
-    $regex =~ s/[\x80-\xff]/(.)/;
-    $accents{$match_var++} = ord($accented);
+    $regex =~ s/[\x80-\xff]/(.|..)/;
+    $accents{$match_var++} = $accented;
   }
   $self->accented(\%accents);
   $self->regex($regex) if keys %accents;
@@ -162,45 +168,88 @@ sub parse {
   return 1;
 }
 
+sub _render_regex {
+  my ($self) = shift;
+  my $uri   = $self->uri;
+  my $regex = $self->regex;
+  my $delim = $self->delim;
+  my $flags = $self->flags;
+  if (!defined $flags) {
+    $self->flags("");
+    $flags = "";
+  }
+
+  if ($self->metaquote) {
+    $regex = "\\Q$regex\\E";
+  }
+  if ($delim ne "/") {
+    $regex = "m$delim$regex$delim";
+  }
+  else {
+    $regex = "/$regex/";
+  }
+  if ($flags) {
+    $regex .= $flags;
+  }
+
+  return $regex;
+}
+
 sub as_tests {
   my ($self) = @_;
   my @tests;
-  if (defined (my $uri =     $self->uri)   and
+  my $current = 0;
+  my $flags = $self->flags() || "";
+  my $uri = $self->uri;
+
+  my %accents = %{$self->accented};
+  if (defined $uri and
       defined (my $regex =   $self->regex) and
       defined (my $delim =   $self->delim) and
       defined (my $comment = $self->comment)) {
-    if (defined ($tests[0] = $test_type{$self->kind})) {
-       $tests[0] =~ s/<uri>/$uri/g;
-       $tests[0] =~ s/<delim>/$delim/g;
+    if (defined ($tests[$current] = $test_type{$self->kind})) {
+       $self->test_count($self->test_count()+1);
+       $tests[$current] =~ s/<uri>/$uri/g;
+       $tests[$current] =~ s/<delim>/$delim/g;
        if ($self->metaquote) {
-         $tests[0] =~ s/<regex>/\Q$regex\E/g;
+         $tests[$current] =~ s/<regex>/\Q$regex\E/g;
        }
        else {
-         $tests[0] =~ s/<regex>/$regex/g;
+         $tests[$current] =~ s/<regex>/$regex/g;
        }
-       $tests[0] =~ s/<comment>/$comment/;
-       my %accents = %{$self->accented};
-       for my $accent (keys %accents) {
-         # Keys are which variable we should expect the 
-         # accented character in; values are the expected
-         # character.
-         push @tests, qq[is \$$accent, chr(] . $accents{$accent} .
-                      qq[), "Accent char $accent as expected";];
+       $tests[$current] =~ s/<flags>/$flags/g;
+       $tests[$current] =~ s/<comment>/$comment/;
+       if (keys %accents) {
+         push @tests, qq(\@accent = (mech->content =~ @{[$self->_render_regex]});\n);
+         for my $accent (keys %accents) {
+           # Keys are which variable we should expect the 
+           # accented character in; values are the expected
+           # character.
+           push @tests, qq[is \$accent[$accent], "] . $accents{$accent} .
+                        qq[", "Accent char $accent as expected";\n];
+           $self->test_count($self->test_count()+1);
+         }
        }
     }
   }
 
+  # Call any plugin per_test routines.
+  for my $plugin ($app->plugins) {
+    push @tests, 
+      $plugin->per_test($self)
+        if $plugin->can('per_test');
+  }
+
   # Make any variable substitutions
-  return @{$self->_substitute([@tests], $self->app->_substitutions)};
+  my $current_in_tests = int @tests;
+  my @generated = @{$self->_substitute([@tests], $self->app->_substitutions)};
+  return  $self->test_count+(scalar @generated - scalar @tests),
+          @generated;
 }
 
 sub _substitute {
   my($self, $tests_ref, @var_names) = @_;
   
-  # Recursion has bottomed out.
-  # Return existing list of tests.
-  return $tests_ref if !@var_names;
-
   # Haven't bottomed out yet. Save one to
   # do and pass rest to recursion. Don't 
   # recurse if this is the last one.

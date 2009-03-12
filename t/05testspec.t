@@ -1,4 +1,4 @@
-use Test::More tests=>13;
+use Test::More tests=>14;
 use Test::Differences;
 
 BEGIN {
@@ -22,46 +22,48 @@ $spec->uri("http://search.yahoo.com");
 $spec->delim('/');
 $spec->comment('No comment');
 $spec->regex("yahoo");
+$spec->flags("s");
 
 is ($spec->uri, "http://search.yahoo.com", "uri accessor");
 is ($spec->delim, "/", "delim accessor");
 is ($spec->comment, "No comment", "comment accessor");
 is ($spec->regex, "yahoo", "regex accessor");
+is ($spec->flags, "s", "flags accessor");
 
 $spec->kind('Y');
 $expected = <<EOS;
 page_like "http://search.yahoo.com",
-          qr/yahoo/,
-          "No comment [http://search.yahoo.com] [/yahoo/ should match]";
+          qr/yahoo/s,
+          "No comment [http://search.yahoo.com] [/yahoo/s should match]";
 EOS
-eq_or_diff [split /\n/,($spec->as_tests)[0]], [split /\n/, $expected], "Y works";
+eq_or_diff [split /\n/,($spec->as_tests)[1]], [split /\n/, $expected], "Y works";
 
 $spec->kind('N');
 $expected = <<EOS;
 page_unlike "http://search.yahoo.com",
-            qr/yahoo/,
-            "No comment [http://search.yahoo.com] [/yahoo/ shouldn't match]";
+            qr/yahoo/s,
+            "No comment [http://search.yahoo.com] [/yahoo/s shouldn't match]";
 EOS
-eq_or_diff [split /\n/, ($spec->as_tests)[0]], [split /\n/, $expected], "N works";
+eq_or_diff [split /\n/, ($spec->as_tests)[1]], [split /\n/, $expected], "N works";
 
 $spec->kind('TY');
 $expected = <<EOS;
 TODO: {
-  local \$TODO = 'Doesn't match now but should later';
+  local \$Test::WWW::Simple::TODO = "Doesn't match now but should later";
   page_like "http://search.yahoo.com",
-            qr/yahoo/,
-            "No comment [http://search.yahoo.com] [/yahoo/ should match]";
+            qr/yahoo/s,
+            "No comment [http://search.yahoo.com] [/yahoo/s should match]";
 }
 EOS
-eq_or_diff [split /\n/, ($spec->as_tests)[0]], [split /\n/, $expected], "TY works";
+eq_or_diff [split /\n/, ($spec->as_tests)[1]], [split /\n/, $expected], "TY works";
 
 $spec->kind('TN');
 $expected = <<EOS;
 TODO: {
-  local \$TODO = 'Matches now but shouldn't later';
+  local \$Test::WWW::Simple::TODO = "Matches now but shouldn't later";
   page_unlike "http://search.yahoo.com",
-              qr/yahoo/,
-              "No comment [http://search.yahoo.com] [/yahoo/ shouldn't match]";
+              qr/yahoo/s,
+              "No comment [http://search.yahoo.com] [/yahoo/s shouldn't match]";
 }
 EOS
-eq_or_diff [split /\n/, ($spec->as_tests)[0]], [split /\n/, $expected], "TN works";
+eq_or_diff [split /\n/, ($spec->as_tests)[1]], [split /\n/, $expected], "TN works";

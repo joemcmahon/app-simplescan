@@ -1,7 +1,9 @@
 use Test::More tests=>6;
 use Test::Differences;
+$ENV{HARNESS_PERL_SWITCHES} = "" unless defined $ENV{HARNESS_PERL_SWITCHES};
+
 my %commands = (
-  "perl -Iblib/lib bin/simple_scan --gen <examples/ss_over_defer.in" => <<EOS,
+  "$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan --gen <examples/ss_over_defer.in" => <<EOS,
 use Test::More tests=>1;
 use Test::WWW::Simple;
 use strict;
@@ -14,7 +16,7 @@ page_like "http://sample.org/bar",
 
 EOS
 
-  "perl -Iblib/lib bin/simple_scan --gen --define foo=boing <examples/ss_over_defer.in" => <<EOS,
+  "$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan --gen --define foo=boing <examples/ss_over_defer.in" => <<EOS,
 use Test::More tests=>1;
 use Test::WWW::Simple;
 use strict;
@@ -26,7 +28,7 @@ page_like "http://sample.org/bar",
           qq(substitution test [http://sample.org/bar] [/quux/ should match]);
 
 EOS
-  "perl -Iblib/lib bin/simple_scan --gen --defer --define foo=boing <examples/ss_over_defer.in" => <<EOS,
+  "$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan --gen --defer --define foo=boing <examples/ss_over_defer.in" => <<EOS,
 use Test::More tests=>1;
 use Test::WWW::Simple;
 use strict;
@@ -38,7 +40,7 @@ page_like "http://sample.org/bar",
           qq(substitution test [http://sample.org/bar] [/quux/ should match]);
 
 EOS
-  "perl -Iblib/lib bin/simple_scan --gen --over --define foo=boing --define bar=thud<examples/ss_over_defer.in" => <<EOS,
+  "$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan --gen --over --define foo=boing --define bar=thud<examples/ss_over_defer.in" => <<EOS,
 use Test::More tests=>1;
 use Test::WWW::Simple;
 use strict;
@@ -50,7 +52,7 @@ page_like "http://sample.org/boing",
           qq(substitution test [http://sample.org/boing] [/quux/ should match]);
 
 EOS
-  "perl -Iblib/lib bin/simple_scan --gen --over --define foo=boing --define baz=splat<examples/ss_over_defer.in" => <<EOS,
+  "$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan --gen --over --define foo=boing --define baz=splat<examples/ss_over_defer.in" => <<EOS,
 use Test::More tests=>1;
 use Test::WWW::Simple;
 use strict;
@@ -62,7 +64,7 @@ page_like "http://sample.org/boing",
           qq(substitution test [http://sample.org/boing] [/splat/ should match]);
 
 EOS
-  "perl -Iblib/lib bin/simple_scan --debug --gen --over --define foo=boing --define baz=splat<examples/ss_over_defer.in" => <<EOS,
+  "$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan --debug --gen --over --define foo=boing --define baz=splat<examples/ss_over_defer.in" => <<EOS,
 use Test::More tests=>1;
 use Test::WWW::Simple;
 use strict;

@@ -2,7 +2,9 @@
 use Test::More tests=>7;
 use Test::Differences;
 
-@output = `bin/simple_scan<examples/ss_fail.in 2>tmp.out`;
+$ENV{HARNESS_PERL_SWITCHES} = "" unless defined $ENV{HARNESS_PERL_SWITCHES};
+
+@output = `$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan<examples/ss_fail.in 2>tmp.out`;
 @expected = map {"$_\n"} split /\n/,<<EOF;
 1..4
 not ok 1 - No python on perl.org [http://perl.org/] [/python/ should match]

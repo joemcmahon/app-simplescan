@@ -101,21 +101,8 @@ sub parse {
   
   # Remove URI portion.
   my ($URI, $rest) = ($line =~ /^(.*?)\s+(.*)$/);
-  my $copy = $URI;
 
-  # Is this possibly a good URI?
-  if (defined $copy) {
-    $copy =~ s/<.*?>/foo/g;
-    $copy =~ s/>.*?</foo/g;
-
-    # No. 
-    return 0 if !($copy =~ /$RE{URI}/);
-  }
-  else {
-   # No URI there at all.
-   return 0;
-  }
-
+  return 0 if !defined($URI) or !($URI =~ /$RE{URI}/);
   # Remove comment and kind.
   my ($comment, undef, $kind, $maybe_regex) = 
     ((scalar reverse $rest) =~ /^(.*?)(\s+|\s*)\b(Y|N|YT|NT|YS|NS)\s+(.*)$/);
@@ -219,100 +206,44 @@ sub as_tests {
        }
        $tests[$current] =~ s/<flags>/$flags/g;
        $tests[$current] =~ s/<comment>/$comment/;
+       my $accent_tests = 0;
        if (keys %accents) {
          push @tests, qq(\@accent = (mech->content =~ @{[$self->_render_regex]});\n);
          for my $accent (keys %accents) {
+           $accent_tests++;
            # Keys are which variable we should expect the 
            # accented character in; values are the expected
            # character.
-           push @tests, qq[is \$accent[$accent], "] . $accents{$accent} .
-                        qq[", "Accent char $accent as expected";\n];
+           if ($accent_tests == 1) {
+             # Keep the first test associated with its setup code.
+             $tests[-1] .= qq[is \$accent[$accent], "] . $accents{$accent} .
+                           qq[", "Accent char $accent as expected";\n];
+           }
+           else {
+             # subseqent tests stand on their own.
+             push @tests, qq[is \$accent[$accent], "] . $accents{$accent} .
+                          qq[", "Accent char $accent as expected";\n];
+           }
            $self->test_count($self->test_count()+1);
          }
        }
     }
   }
 
-
-  # Make any variable substitutions
-  my $current_in_tests = int @tests;
-  my @generated = @{$self->_substitute([@tests], $self->app->_substitutions)};
-  $self->test_count($self->test_count()+(scalar @generated - scalar @tests));
-
   # Call any plugin per_test routines.
-  my @merged;
-  for my $test_code (@generated) {
-    push @merged, $test_code;
+  for my $test_code (@tests) {
+    $app->stack_test($test_code);
     for my $plugin ($app->plugins) {
       next if ! $plugin->can('per_test');
 
       my ($added_tests, @per_test_code) = $plugin->per_test($self);
-      push @merged, @per_test_code;
-      $self->test_count( $self->test_count() + $added_tests )
-        if $added_tests;
-    }
-  }
-  return $self->test_count(),@merged;
-}
-
-sub _substitute {
-  my($self, $tests_ref, @var_names) = @_;
-  
-  # Haven't bottomed out yet. Save one to
-  # do and pass rest to recursion. Don't 
-  # recurse if this is the last one.
-  my $mine;
-  ($mine, @var_names) = @var_names;
-
-  $tests_ref = $self->_substitute($tests_ref, @var_names)
-    if @var_names;
-
-  # Handle the current substitution over the tests we
-  # currently have.
-  my @results;
-  my $app = $self->app;
-  my $original;
-  my $changed;
-
-  foreach my $test (@$tests_ref) {
-    # Save the original (in case there are no substitutions).
-    $original = $test;
-
-    foreach my $value ($app->_substitution_data($mine)) {
-      # Restore the unsubstituted version.
-      $test = $original;
-
-      # No changes made yet.
-      $changed = 0;
-
-      # change it if we need to and remember we did.
-      $changed ||= ($test =~ s/<$mine>/$value/g);
-      $changed ||= ($test =~ s/>$mine</$value/g);
-
-      # Save it if we changed it.
-      if ($changed) {
-        push @results, $test;
-      }
-
-      # Don't keep trying to substitute if we didn't
-      # change anything.
-      else {
-        last;
+      my $method = $added_tests ? "stack_test" : "stack_code";
+      for my $code_line (@per_test_code) {
+        $app->$method($code_line);
       }
     }
-
-    # Push the unchanged version if there was nothing
-    # to change.
-    unless ($changed) {
-      push @results, $original;
-    }
   }
-
-  # Return whatever we've generated, either up one
-  # level of the recursion, or to the original caller.
-  return \@results;
 }
-      
 
 1; # Magic true value required at end of module
 __END__

@@ -2,7 +2,9 @@
 use Test::More tests=>1;
 use Test::Differences;
 
-@output = `perl -Iblib/lib bin/simple_scan<examples/ss_user_agent.in`;
+$ENV{HARNESS_PERL_SWITCHES} = "" unless defined $ENV{HARNESS_PERL_SWITCHES};
+
+@output = `$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan<examples/ss_user_agent.in`;
 @expected = map {"$_\n"} split /\n/,<<EOF;
 1..3
 ok 1 - Perl should be there (Windows IE 6) [http://perl.org/] [/perl/ should match]

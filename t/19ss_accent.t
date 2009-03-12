@@ -1,6 +1,8 @@
 use Test::More tests=>1;
 use Test::Differences;
-@output = `echo "http://fake.video.fr/q=clips+pour+madonna /Recherche de vidéos <b>pour/ Y French video matches"| perl -Iblib/lib bin/simple_scan -gen`;
+$ENV{HARNESS_PERL_SWITCHES} = "" unless defined $ENV{HARNESS_PERL_SWITCHES};
+
+@output = `echo "http://fake.video.fr/q=clips+pour+madonna /Recherche de vidéos <b>pour/ Y French video matches"| $^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan -gen`;
 @expected = (map {"$_\n"} (split /\n/,<<EOS));
 use Test::More tests=>2;
 use Test::WWW::Simple;

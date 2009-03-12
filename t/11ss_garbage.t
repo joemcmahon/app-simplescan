@@ -4,7 +4,9 @@ use Test::Differences;
 use App::SimpleScan;
 use IO::ScalarArray;
 
-@output = `bin/simple_scan --gen --warn <examples/ss_garbage1.in`;
+$ENV{HARNESS_PERL_SWITCHES} = "" unless defined $ENV{HARNESS_PERL_SWITCHES};
+
+@output = `$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan --gen --warn <examples/ss_garbage1.in`;
 @expected = map {"$_\n"} split /\n/,<<EOF;
 use Test::More tests=>0;
 use Test::WWW::Simple;

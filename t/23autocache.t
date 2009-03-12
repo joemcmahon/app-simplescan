@@ -2,7 +2,9 @@
 use Test::More tests=>1;
 use Test::Differences;
 
-@output = `echo "http://yahoo.com/ /Yahoo/ Y branding" | bin/simple_scan --gen --autocache`;
+$ENV{HARNESS_PERL_SWITCHES} = "" unless defined $ENV{HARNESS_PERL_SWITCHES};
+
+@output = `echo "http://yahoo.com/ /Yahoo/ Y branding" | $^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan --gen --autocache`;
 @expected = map {"$_\n"} split /\n/,<<EOF;
 use Test::More tests=>1;
 use Test::WWW::Simple;

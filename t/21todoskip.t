@@ -1,7 +1,9 @@
 use Test::More tests=>4;
 use Test::Differences;
+$ENV{HARNESS_PERL_SWITCHES} = "" unless defined $ENV{HARNESS_PERL_SWITCHES};
+
 my %runs = (
-  qq(echo "http://perl.org/ /python/ TY later..." | simple_scan 2>&1) => <<EOS,
+  qq(echo "http://perl.org/ /python/ TY later..." | $^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan 2>&1) => <<EOS,
 1..1
 not ok 1 - later... [http://perl.org/] [/python/ should match] # TODO Doesn't match now but should later
 

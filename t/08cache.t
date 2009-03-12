@@ -1,7 +1,9 @@
 use Test::More tests=>4;
 use Test::Differences;
 
-my @output = `echo "%%cache" |bin/simple_scan --gen`;
+$ENV{HARNESS_PERL_SWITCHES} = "" unless defined $ENV{HARNESS_PERL_SWITCHES};
+
+my @output = `echo "%%cache" |$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan --gen`;
 ok((scalar @output), "got output");
 my $expected = <<EOS;
 use Test::More tests=>0;
@@ -15,7 +17,7 @@ cache();
 EOS
 eq_or_diff(join("",@output), $expected, "output matches");
 
-@output = `echo "%%nocache" |bin/simple_scan --gen`;
+@output = `echo "%%nocache" |$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan --gen`;
 ok((scalar @output), "got output");
 $expected = <<EOS;
 use Test::More tests=>0;

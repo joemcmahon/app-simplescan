@@ -1,5 +1,24 @@
 Revision history for App-SimpleScan
 
+0.32  Wed Feb 22 15:47:10 PST 2006
+	- Add input queue manipulation to set up for macro-like
+	  pragmas and simpler input handling for test spec
+	  expansion
+	- internal topological sort to resolve possible
+	  circular dependencies:
+	    %%foo this is <bar>
+            %%bar this is <foo>
+        - Add code to save current test spec (useful if 
+          an overridden method needs to see the current spec)
+
+0.31  Mon Feb 13 13:02:04 PST 2006
+	- document that %ENV variables work in substitution pragmas
+
+0.30  Fri Feb 10 15:32:13 PST 2006
+	- Change all test and code stacking in App::SimpleScan::Testspec
+	  to use stack_test and stack_code so this is consistent
+          across core code and plugins.
+
 0.29  Mon Feb  6 16:20:09 PST 2006
         - expanded plugin documentation
 	- expanded tests to match new docs

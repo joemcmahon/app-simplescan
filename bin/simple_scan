@@ -156,14 +156,13 @@ turn caching I<off> again.
 =head1 PRAGMAS
 
 Pragmas are ways to influence what C<simple_scan> does when generating tests.
-They don't output anything themselves.
-
-Pragmas are specified with C<%%> in column 1 and the pragma name immediately
-following. Any arguments aer supplied after a colon, like this:
+They are specified with C<%%> in column 1 and the pragma name immediately
+following. Any arguments are supplied after a colon, like this:
 
    %%foo: bar baz
 
-This invokes the C<foo> pragma with the argument C<bar baz>.
+This invokes the C<foo> pragma with the argument C<bar baz>. If you're really
+lazy, you can even leave out the colon.
 
 =head2 Substitutions
 
@@ -186,7 +185,7 @@ petdance, and the use.perl journals for users Ovid and pemungkah. Finally,
 it would (just once) fetch the Yahoo! search page - because there are no
 substitutions in that line, it would only be evaluated once.
 
-The substitutions can occur anywhere in the line, including in the comment.
+Substitutions can occur anywhere in the line, including in the comment.
 
 This pragma allows for very simple-minded internationalization. For instance,
 let's assume that you want to substitute each of a list of two-character 
@@ -203,13 +202,40 @@ This would generate 4 tests, for C<es.mysite.com>, C<au.mysite.com>,
 c<my.mysite.com>, and C<jp.mysite.com>, all looking to match C<blargh> 
 somewhere on the page.
 
-You may also use quoted strings:
+=head2 Nested substitutions
 
-   %%searchtext "this one" 'that one' "another one"
+As of version 0.31 of C<App::SimpleScan>, substitutions can actually
+reference other substitutions, so something like this is now
+possible:
+
+%%mirror blonk whiz thud crunch
+%%welcome_msg 'Welcome to <mirror>'
+http://<mirror>.yoursite.org/ /<welcome_msg>/ Y <mirror> welcome
+
+When the test spec is expanded, the string 'Welcome to <mirror>'
+is substituted in first, then the test spec is expanded again to
+create a test for each one of the mirrors.
+
+=head2 Single-quotes, double-quotes, and backticks
+
+You can use single-quoted strings in substitutions to get exact
+strings containing spaces or tabs:
+
+   %%searchtext 'this one' 'that one' 'another one'
 
 The spaces will be preserved in the values assigned to C<searchtext>.
 
-In addition, you can use backticked strings to denote a command to be
+If you want to C<eval> the contents of a string as if it were Perl code
+and use that as the value of a substitution, put double quotes around it:
+
+   %%language "$ENV{LANGUAGE}"
+   %%now      "@{[scalar localtime]}"
+
+The first example allows you to pass in a value from the environment
+variable C<$LANGUAGE>; the second gets the current date and time as a string (so its 
+value would be something like "Tue Feb 14 14:21:56 2006").
+
+Lastly, you can use backticked strings to denote a command to be
 executed by the shell; the command's output will be used in place of
 the quoted string.
 
@@ -231,6 +257,18 @@ All of the different forms can be mixed on one line, so
 
 would set C<try> to the output of C<some_command>,
 C<value one>, and C<value2>.
+
+Finally, since quoted strings are embedded exactly as provided, it's 
+possible to parameterize your test specs by using environment variables,
+like this:
+
+   %%language $ENV{LANGUAGE}
+   http://<language>.org/ /language/i Y <language> should be on the page
+
+Now setting the enviroment variable C<LANGUAGE> in your shell to 'perl'
+will propagate 'perl' into the test spec as the language we're testing for.
+
+
 
 =head2 agent
 

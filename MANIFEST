@@ -1,10 +1,10 @@
 bin/languages
 bin/simple_report
 bin/simple_scan
-bin/simple_scan.yahoo
 Changes
 examples/ss.in
 examples/ss_backtick1.in
+examples/ss_backtick_env.in
 examples/ss_blank.in
 examples/ss_comment.in
 examples/ss_country.in
@@ -55,6 +55,9 @@ t/28planned.t
 t/29unplanned.t
 t/30diags.t
 t/31snapshot.t
+t/32env.t
+t/33queue.t
+t/34tsort.t
 t/App/SimpleScan/Plugin/TestExpand.pm
 t/noplan.tap
 t/planned.tap

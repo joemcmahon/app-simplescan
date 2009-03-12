@@ -1,6 +1,6 @@
 package App::SimpleScan;
 
-our $VERSION = '0.30';
+our $VERSION = '0.32';
 use 5.006;
 
 use warnings;
@@ -50,6 +50,12 @@ my %basic_options =
 
 use base qw(Class::Accessor::Fast);
 
+# Create the object. 
+# - load and install plugins
+# - make object available to test specs for callbacks
+# - clear the tests and test count
+# - process the command-line options
+# - return the object
 sub new {
   my ($class) = @_;
   my $self = {};
@@ -63,6 +69,8 @@ sub new {
 
   $self->tests([]);
   $self->test_count(0);
+  $self->{InputQueue} = [];
+  $self->{PragmaDepend} = {};
 
   binmode(STDIN);
 
@@ -71,6 +79,9 @@ sub new {
   return $self;
 }
 
+# Read the test specs and turn them into tests.
+# Add any additional code from the plugins.
+# Return the tests as a string.
 sub create_tests {
   my ($self) = @_;
 
@@ -79,12 +90,18 @@ sub create_tests {
   return join("", @{$self->tests});
 }
 
+# If the tests should be run, run them.
+# Return any exceptions to the caller.
 sub execute {
   my ($self, $code) = @_;
   eval $code if ${$self->run};
   return $@;
 }
 
+# Actually use the object.
+# - create tests from input
+# - run them if we should
+# - print them if we should
 sub go {
   my($self) = @_;
   my $exit_code = 0;
@@ -110,10 +127,12 @@ sub go {
   return $exit_code;
 }
 
+# Read files from command line or standard input.
+# Turn these from test specs into test code.
 sub transform_test_specs {
   my ($self) = @_;
   local $_;
-  while(<>) {
+  while(defined( $_ = $self->next_line )) {
     chomp;
     # Discard comments.
     /^#/ and next;
@@ -131,13 +150,47 @@ sub transform_test_specs {
         if (defined($5)) {
           my $var = $1;
           my @data = _expand_backticked($5);
-          $self->_substitution_data($var, @data);
+          my ($status, $message) = $self->_check_dependencies($var, @data);
+          if ($status) {
+            $self->_substitution_data($var, @data);
+          }
+          else {
+            my @items = split $message;
+            my $between = (@items < 3) ? "between" : "among";
+            $self->stack_test( qw(fail "Cannot add substitution for $var: dependency loop $between $message";\n));
+          }
         }
       }
       next;
     };
 
+    # Commit any substitutions.
+    # We use 'next' because the substituted lines
+    # will have been queued on the input if there
+    # where any substitutions.
+    #
+    # We do this *after* pragma processing because 
+    # if we have this:
+    #  %%foo bar baz
+    #  %%quux <foo> is the value
+    #
+    # and we expanded pragmas in place, we'd get
+    #  %%foo bar baz
+    #  %%quux bar
+    #  %%quux baz
+    #
+    # which is probably *not* what is wanted.
+    # Putting this here makes sure that we only
+    # substitute into actual test specs.
+    next if $self->_queue_substitutions($_);
+
+    # No substitutions in this line, so just process it.
     my $item = App::SimpleScan::TestSpec->new($_);
+
+    # Store it in case a plugin needs to look at the 
+    # test spec in an overriding method.
+    $self->set_current_spec($item);
+
     if ($item->syntax_error) {
       $self->tests([
                     @{$self->tests},
@@ -147,13 +200,14 @@ sub transform_test_specs {
                      
     }
     else {
-      my ($count, @generated) = $item->as_tests;
-      $self->tests([@{$self->tests}, @generated]);
-      $self->test_count($self->test_count+($count));
+      $item->as_tests;
     }
+    # Drop the spec (there isn't one active now).
+    $self->set_current_spec();
   }
 }
 
+# Handle backticked values in substitutions.
 sub _expand_backticked {
   my ($text) = shift;
 
@@ -194,9 +248,9 @@ sub _expand_backticked {
     if (/^`(.*)$`/) {
       push @result, _expand_backticked(eval $_);
     }
-    # Double-quoted: remove quotes.
+    # Double-quoted: eval it.
     elsif (/^"(.*)"$/) {
-      push @result, $1;
+      push @result, eval($1);
     }
     # Single-quoted: remove quotes.
     elsif (/^'(.*)'$/) {
@@ -210,18 +264,113 @@ sub _expand_backticked {
   return @result;
 }
 
+sub set_current_spec {
+  my ($self, $testspec) = @_;
+  $self->{CurrentTestSpec} = $testspec;
+}
+
+sub get_current_spec {
+  my ($self) = @_;
+  return $self->{CurrentTestSpec};
+}
+
+
 sub _delete_substitution {
   my ($self, $pragma_name) = @_;
   delete $self->{Substitution_data}->{$pragma_name};
   return;
 }
 
+# Get all active substitutions.
 sub _substitutions {
   my ($self) = @_;
   keys %{$self->{Substitution_data}} 
     if defined $self->{Substitution_data};
 }
 
+# If the current thing has substitutions in it,
+# queue those onto the input and return true.
+# Else return false.
+sub _queue_substitutions {
+  my($self, $line) = @_;
+  my $results = $self->_substitute([$line], $self->_substitutions);
+  if (@$results != 1) {
+    # substitutions definitely happened
+    $self->queue_lines(@$results);
+    return 1;
+  }
+  elsif ($results->[0] ne $line) {
+    # single line is different, so substitution(s) happened
+    $self->queue_lines(@$results);
+    return 1;
+  }
+  else {
+    # nothing happened, just process it as is
+    return 0;
+  }
+}
+
+# Actually do variable substitutions.
+sub _substitute {
+  my($self, $tests_ref, @var_names) = @_;
+ 
+  # Haven't bottomed out yet. Save one to
+  # do and pass rest to recursion. Don't
+  # recurse if this is the last one.
+  my $mine;
+  ($mine, @var_names) = @var_names;
+
+  $tests_ref = $self->_substitute($tests_ref, @var_names)
+    if @var_names;
+
+  # Handle the current substitution over the tests we
+  # currently have.
+  my @results;
+  my $original;
+  my $changed;
+
+  foreach my $test (@$tests_ref) {
+    # Save the original (in case there are no substitutions).
+    $original = $test;
+
+    foreach my $value ($self->_substitution_data($mine)) {
+      # Restore the unsubstituted version.
+      $test = $original;
+
+      # No changes made yet.
+      $changed = 0;
+
+      # change it if we need to and remember we did.
+      $changed ||= ($test =~ s/<$mine>/$value/g);
+      $changed ||= ($test =~ s/>$mine</$value/g);
+
+      # Save it if we changed it.
+      if ($changed) {
+        push @results, $test;
+      }
+
+      # Don't keep trying to substitute if we didn't
+      # change anything.
+      else {
+        last;
+      }
+    }
+
+    # Push the unchanged version if there was nothing
+    # to change.
+    unless ($changed) {
+      push @results, $original;
+    }
+  }
+
+  # Return whatever we've generated, either up one
+  # level of the recursion, or to the original caller.
+  return \@results;
+}
+
+# setter/getter for substitution data.
+# - setter needs a name and a list of values.
+# - getter needs a name, returns a list of values.
 sub _do_substitution {
   my ($self, $pragma_name, @pragma_values) = @_;
   die "No pragma specified" unless defined $pragma_name;
@@ -233,6 +382,9 @@ sub _do_substitution {
               : $self->{Substitution_data}->{$pragma_name};
 }
 
+# Wrapper function for setter/getter that implements the
+# override function (command-line substitutions override 
+# substitutions in the input).
 sub _substitution_data {
   my ($self, $pragma_name, @pragma_values) = @_;
   croak "No pragma specified" unless defined $pragma_name;
@@ -296,6 +448,7 @@ sub handle_options {
   $self->app_defaults;
 }
 
+# Set up application defaults.
 sub app_defaults {
   my ($self) = @_;
   # Assume --run if neither --run nor --generate.
@@ -315,6 +468,9 @@ sub app_defaults {
     if ${$self->autocache};
 }
 
+# Transform the options specs (whether from here or
+# from plugins) into methods that we can call to
+# set/get the option values.
 sub install_options {
   my ($self, @options) = @_;
   $self->{Options} = {} unless defined $self->{Options};
@@ -366,18 +522,24 @@ sub install_options {
   }
 }
 
+# Load all the plugins.
 sub _load_plugins {
   my($self) = @_;
   foreach my $plugin (__PACKAGE__->plugins) {
     eval "use $plugin";
     $@ and die "Plugin $plugin failed to load: $@\n";
+  }
 }
 
+# Call Getopt::Long to parse the command line.
 sub parse_command_line {
   my ($self) = @_;
   GetOptions(%{$self->{Options}});
 }
 
+# Install any pragmas supplied by plugins.
+# We reuse this same code to install all of
+# the locally defined pragmas.
 sub install_pragma_plugins {
   my ($self) = @_;
 
@@ -387,17 +549,17 @@ sub install_pragma_plugins {
       $self->pragma(@$plugin);
     }
     elsif ($plugin->can('pragmas')) {
-        foreach my $pragma_spec ($plugin->pragmas) {
-          $self->pragma(@$pragma_spec);
-          if ($plugin->can('init')) {
-            $plugin->init($self);
-          }
+      foreach my $pragma_spec ($plugin->pragmas) {
+        $self->pragma(@$pragma_spec);
+        if ($plugin->can('init')) {
+          $plugin->init($self);
         }
       }
     }
   }
 }
 
+# Find the pragma code associated with the name.
 sub pragma {
   my ($self, $name, $pragma) = @_;
   die "You forgot the pragma name\n" if ! defined $name;
@@ -406,6 +568,9 @@ sub pragma {
   $self->{Pragma}->{$name};
 }
 
+# %%agent pragma handler. Verify that the argument
+# is a valid WW::Mechanize agent alias string, and
+# stack code to change it as appropriate.
 sub _do_agent {
   my ($self, $rest) = @_;
   $rest = reverse $rest;
@@ -417,28 +582,72 @@ sub _do_agent {
   $self->stack_code(qq(user_agent("$maybe_agent");\n));
 }
 
+# %%cache - turn on Test::WWW::Simple's cache.
 sub _do_cache {
   my ($self,$rest) = @_;
   $self->stack_code("cache();\n");
 }
 
+# %%nocache - turn off Test::WWW::Simple's cache.
 sub _do_nocache {
   my ($self,$rest) = @_;
   $self->stack_code("no_cache();\n");
 }
 
+# Handle input queueing. If there's anything queued,
+# return it first; otherwise, just read another line
+# from the magic input filehandle.
+sub next_line {
+  my ($self) = shift;
+  my $next_line;
+  if (defined $self->{InputQueue}->[0] ) {
+    $next_line = shift @{ $self->{InputQueue} };
+  }
+  else {
+    $next_line = <>;
+  }
+  return $next_line;
+}
+
+# Handle input stacking by pragmas. Add any new lines
+# to the head of the queue.
+sub queue_lines {
+  my ($self, @lines) = @_;
+  $self->{InputQueue} = [ @lines, @{ $self->{InputQueue} } ];
+}
+
+# stack_code just adds code to the array holding
+# the generated program.
 sub stack_code {
   my ($self, @code) = @_;
   my @old_code = @{$self->tests};
   $self->tests([@old_code, @code]);
 }
 
+# stack_test adds code to the array holding
+# the generated program, and bumps the test
+# count so we can use the proper number of tests
+# in our test plan.
 sub stack_test {
   my($self, @code) = @_;
   $self->stack_code(@code);
   $self->test_count($self->test_count()+1);
 }
 
+# Calls each plugin's test_modules method
+# to stack any other test modules needed to
+# properly handle the test code. (Plugins may
+# want to generate test code that needs 
+# something like Test::Differences, etc. - 
+# this lets them load that module so the
+# tests actually work.)
+#
+# Also adds the test plan and the array we use
+# to capture accented characters (we should be
+# able to dump this kludge soon...)
+#
+# Finally, initializes the user agent (unless
+# we're specifically directed *not* to do so).
 sub finalize_tests {
   my ($self) = @_;
   my @tests = @{$self->tests};
@@ -470,6 +679,77 @@ sub finalize_tests {
   
   
   $self->tests( [ @prepends, @tests ] );
+}
+
+### Dependencies
+# It's necessary to make sure that the substitution pragmas
+# don't have looping dependencies; these would cause the 
+# input stack to grow without limit as it tries to resolve
+# all of the substitutions.
+#
+# We use a topological sort of the dependencies to make 
+# sure that the there are no loops in the substitution
+# pragma dependencies. This is a sort that takes as its
+# input a definition of the order that the items are 
+# supposed to occur in, and returns either an ordering
+# of the data, or a list of the items that are mutually
+# dependent.
+
+sub _check_dependencies {
+  return 1, "dummied out";
+}
+
+sub _depend {
+  my($self, $item, @parents) = @_;
+  if (!defined $item) {
+    return keys %{ $self->{PragmaDepend} };
+  }
+
+  if (!@parents) {
+    return ($self->{PragmaDepend}->{$item} or []);
+  }
+
+  for my $parent (@parents) {
+    push @{ $self->{PragmaDepend}->{$parent} }, $item;
+  }
+}
+
+sub _tsort {
+  my $self = shift;
+
+  my %pairs;	# all pairs ($l, $r)
+  my %npred;	# number of predecessors
+  my %succ;	# list of successors
+
+  for my $parent ($self->_depend) {
+    for my $child (@{ $self->_depend($parent) }) {
+      next if defined $pairs{$parent}{$child};
+      $pairs{$parent}{$child}++;
+      $npred{$parent} += 0;
+      ++$npred{$child};
+      push @{$succ{$parent}}, $child;
+    }
+  }
+
+  # create a list of nodes without predecessors
+  my @list = grep { ! $npred{$_} } keys %npred;
+
+  my @order;
+  while (@list) {
+    push @order, ($_ = pop @list);
+    foreach my $child (@{$succ{$_}}) {
+      unshift @list, $child unless --$npred{$child};
+    }
+  }
+
+  $self->{DependencyOrder} = \@order;
+
+  my @looped;
+  for (keys %npred) {
+    push @looped, $_ if $npred{$_};
+  }
+  @looped ? return(0, "@looped")
+          : return(1, "@order");
 }
 
 1; # Magic true value required at end of module
@@ -554,6 +834,40 @@ C<agent>) and any supplied by the plugins.
 =head2 transform_test_specs
 
 Does all the work of transforming test specs into code.
+
+=head2 next_line
+
+Reads the next line of input, handling the possibility that a plugin 
+has stacked lines on the input queue to be read and processed (or
+perhaps reprocessed).
+
+=head2 queue_lines
+
+Queues one or more lines of input ahead of the current "next line".
+
+If no lines have been queued yet, simply adds the lines to the input
+queue. If there are existing lines in the input queue, lines passed
+to this routine are queued I<ahead> of those lines, like this:
+
+  # Input queue = ()
+  # $app->queue_lines("save this")
+  #
+  # Input queue now = ("save this")
+  # $app->queue_lines("this one", "another")
+  #
+  # input queue now = ("this one", "another", "save this")
+
+This is done so that if a pragma queues lines which are other pragmas,
+these get processed before any other pending input does.
+
+=head2 set_current_spec
+
+Save the argument passed as the current test spec. If no 
+argument is passed, sets the current spec to undef.
+
+=head2 get_current_spec
+
+Retrieve the current test spec. 
 
 =head2 stack_code
 
@@ -648,7 +962,7 @@ Code to be emitted I<before> the current test should
 be emitted via calls to C<stack_code> and C<stack_test>.
 
 Code to be emitted I<after> the current test should be
-Ireturned> to the caller,along with a count indicating 
+I<returned> to the caller, along with a count indicating 
 how many tests are included in the returned code. You
 can return zero to indicate that none of the returned
 code is tests.

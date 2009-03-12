@@ -2,7 +2,9 @@
 use Test::More tests=>2;
 use Test::Differences;
 
-@output = `perl -Iblib/lib bin/simple_scan <examples/ss_backtick1.in`;
+$ENV{HARNESS_PERL_SWITCHES} = "" unless defined $ENV{HARNESS_PERL_SWITCHES};
+
+@output = `$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan <examples/ss_backtick1.in`;
 @expected = map {"$_\n"} split /\n/,<<EOF;
 1..4
 ok 1 - perl.org [http://perl.org] [/perl/i should match]
@@ -12,7 +14,7 @@ ok 4 - ruby.org [http://ruby.org] [/ruby/i should match]
 EOF
 eq_or_diff(\@output, \@expected, "working output as expected");
 
-@output = `perl -Iblib/lib bin/simple_scan <examples/ss_quoted.in`;
+@output = `$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan <examples/ss_quoted.in`;
 @expected = map {"$_\n"} split /\n/,<<EOF;
 1..4
 ok 1 - Find "Master Librarian" [http://cpan.org] [/Master Librarian/ should match]

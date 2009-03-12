@@ -2,6 +2,8 @@
 use Test::More tests=>2;
 use Test::Differences;
 
+$ENV{HARNESS_PERL_SWITCHES} = "" unless defined $ENV{HARNESS_PERL_SWITCHES};
+
 @output = `$^X -It bin/simple_scan --gen <examples/ss_country.in`;
 @expected = map {"$_\n"} split /\n/,<<EOF;
 use Test::More tests=>4;

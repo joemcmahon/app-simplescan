@@ -1,5 +1,9 @@
 Revision history for App-SimpleScan
 
+0.29  Mon Feb  6 16:20:09 PST 2006
+        - expanded plugin documentation
+	- expanded tests to match new docs
+
 0.28  Mon Feb  6 12:18:21 PST 2006
 	- fixed missing default agent_alias
 

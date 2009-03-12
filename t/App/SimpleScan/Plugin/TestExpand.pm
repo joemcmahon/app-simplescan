@@ -14,6 +14,13 @@ sub import {
   *{caller() . '::test_expand'}  = \&test_expand;
 }
 
+sub init {
+  my ($class, $app) = @_;
+  no strict 'refs';
+  *{caller() . '::expander'} = \&test_expand;
+  $app->{Expander} = "ping!";
+}
+
 sub test_expand {
   my($self, $value) = @_;
   $test_expand = $value if defined $value;

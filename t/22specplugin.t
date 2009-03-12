@@ -1,4 +1,4 @@
-use Test::More tests=>5;
+use Test::More tests=>7;
 
 BEGIN {
   use_ok qw(App::SimpleScan);
@@ -10,3 +10,6 @@ my $ss = new App::SimpleScan;
 ok $ss->can('plugins'), "plugins method available";
 isa_ok [$ss->plugins()],"ARRAY", "returns right thing";
 ok grep { /TestExpand/ } $ss->plugins, "test plugin there";
+
+ok exists $ss->{Expander}, "plugin installed instance variable";
+can_ok $ss, qw(expander);

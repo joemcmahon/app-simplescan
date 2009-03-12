@@ -1,6 +1,6 @@
 package App::SimpleScan;
 
-our $VERSION = '0.28';
+our $VERSION = '0.29';
 use 5.006;
 
 use warnings;
@@ -389,6 +389,9 @@ sub install_pragma_plugins {
     elsif ($plugin->can('pragmas')) {
         foreach my $pragma_spec ($plugin->pragmas) {
           $self->pragma(@$pragma_spec);
+          if ($plugin->can('init')) {
+            $plugin->init($self);
+          }
         }
       }
     }
@@ -588,6 +591,58 @@ C<options> class method which returns a set of parameters
 appropriate for C<install_options>. C<App::SimpleScan> will
 check for this method when you plugin is loaded, and call 
 it to install your options automatically.
+
+=head2 Adding new pragmas
+
+Plugins can install new pragmas by implementing a C<pragmas>
+class method. This method should return a list of array
+references, with each array reference containing a 
+pragma name and a code reference which will implement the
+pragma.
+
+The actual pragma implementation will receive a reference to
+the C<App::SimpleScan> object and the arguments to the pragma
+(from the pragma line in the input) as a string of text. It is
+up to the pragma to parse the string.
+
+Pragma will probably use one of the following methods to 
+output test code:
+
+=over 4
+
+=item * init
+
+The C<init> class method is called by C<App:SimpleScan>
+when the plugin class is loaded; the C<App::SimpleScan>
+object is suppled to allow the plugin to alter or add to the
+contents of the object. This allows plugins to export methods
+to the base class, or to add instance variables dynamically.
+
+Note that the class passed in to this method is the class
+of the I<plugin>, not of the caller (C<App::SimpleScan>
+or a derived class). You should use C<caller()> if you wish
+to export subroutines into the class corresponding to the 
+base class object.
+
+=item * stack_code("code to stack")
+
+A call to C<stack_code> will cause the string passed back to 
+be emitted immediately into the code stream. The test count
+will remain at its current value.
+
+=item * stack_test("code and tests to stack")
+
+C<stack_test> will immediately emit the code supplied as
+its argument, and will increment the test count by one. You
+should use multiple calls to C<stack_test> if you need
+to stack more than one test.
+
+If a pragma wants to stack code that will be emitted for
+every test, it should implement a  C<per_test> method.
+This will be called by C<App::SimpleScan::TestSpec> for
+every testspec processed.
+
+=back
 
 =head1 DIAGNOSTICS
 

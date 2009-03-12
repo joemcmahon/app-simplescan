@@ -1,6 +1,6 @@
 package App::SimpleScan;
 
-our $VERSION = '0.17';
+our $VERSION = '0.21';
 use 5.006;
 
 use warnings;
@@ -40,8 +40,13 @@ sub new {
   bless $self, $class;
   $self->_load_plugins();
 
+  $self->install_pragma_plugins;
+
   App::SimpleScan::TestSpec->app($self);
+
   $self->tests([]);
+  $self->test_count(0);
+
   binmode(STDIN);
 
   $self->handle_options;
@@ -54,9 +59,6 @@ sub new {
 sub create_tests {
   my ($self) = @_;
 
-  $self->test_count(0);
-
-  $self->install_pragma_plugins;
   $self->transform_test_specs;
   $self->finalize_tests;
   return join("", @{$self->tests});
@@ -106,7 +108,7 @@ sub transform_test_specs {
 
     # Handle pragmas.
     /^%%\s*(.*?)(((:\s+|\s+)(.*)$)|$)/ and do {
-      if (my $code = $self->_pragma($1)) {
+      if (my $code = $self->pragma($1)) {
         $code->($self,$5);
       }
       else {
@@ -213,7 +215,7 @@ sub handle_options {
   $self->parse_command_line;
 
   foreach my $plugin (__PACKAGE__->plugins) {
-    $plugin->validate_options() if
+    $plugin->validate_options($self) if
       $plugin->can('validate_options');
   }
 
@@ -302,18 +304,18 @@ sub install_pragma_plugins {
   foreach my $plugin (@local_pragma_support, 
                       __PACKAGE__->plugins) {
     if (ref $plugin eq 'ARRAY') {
-      $self->_pragma(@$plugin);
+      $self->pragma(@$plugin);
     }
     elsif ($plugin->can('pragmas')) {
         foreach my $pragma_spec ($plugin->pragmas) {
-          $self->_pragma(@$pragma_spec);
+          $self->pragma(@$pragma_spec);
         }
       }
     }
   }
 }
 
-sub _pragma {
+sub pragma {
   my ($self, $name, $pragma) = @_;
   die "You forgot the pragma name\n" if ! defined $name;
   $self->{Pragma}->{$name} = $pragma
@@ -466,6 +468,11 @@ Adds code to the final output without incrementing the number of tests.
 =head2 stack_test
 
 Adds code to the final output and bumps the test count by one.
+
+=head2 pragma
+
+Provides access to pragma-processing code. Useful in plugins to 
+get to the pragmas installed for the plugin concerned.
 
 =head2 finalize_tests
 

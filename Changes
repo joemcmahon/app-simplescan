@@ -1,5 +1,22 @@
 Revision history for App-SimpleScan
 
+0.21  Mon Nov 21 17:14:07
+	- Move test count initialization to prevent an 
+	  uninitialized variable warning if a test is stacked by
+	  a plugin during the options processing phase. (Is that
+	  a specific enough bug or what?)
+
+0.20  Mon Nov 21 17:03:24 2005
+  	- Move pragma installation earlier so plugins can find pragma
+	processors
+
+0.19  Mon Nov 21 16:09:28 2005 
+	- Expose the pragma() method for use by plugins
+
+0.18  Mon Nov 21 14:25:24 2005
+	- Made sure that validate_options gets the App::SimpleScan 
+	  object
+
 0.17  Fri Nov 18 18:10:34 2005
 	- Added conditional callback to validate_options()
 	  in plugins; allows plugins to make sure that 

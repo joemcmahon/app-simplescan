@@ -9,7 +9,7 @@ use strict;
 my \@accent;
 page_like "http://sample.org/bar",
           qr/quux/,
-          "substitution test [http://sample.org/bar] [/quux/ should match]";
+          qq(substitution test [http://sample.org/bar] [/quux/ should match]);
 
 EOS
 
@@ -21,7 +21,7 @@ use strict;
 my \@accent;
 page_like "http://sample.org/bar",
           qr/quux/,
-          "substitution test [http://sample.org/bar] [/quux/ should match]";
+          qq(substitution test [http://sample.org/bar] [/quux/ should match]);
 
 EOS
   "perl -Iblib/lib bin/simple_scan --gen --defer --define foo=boing <examples/ss_over_defer.in" => <<EOS,
@@ -32,7 +32,7 @@ use strict;
 my \@accent;
 page_like "http://sample.org/bar",
           qr/quux/,
-          "substitution test [http://sample.org/bar] [/quux/ should match]";
+          qq(substitution test [http://sample.org/bar] [/quux/ should match]);
 
 EOS
   "perl -Iblib/lib bin/simple_scan --gen --over --define foo=boing --define bar=thud<examples/ss_over_defer.in" => <<EOS,
@@ -43,7 +43,7 @@ use strict;
 my \@accent;
 page_like "http://sample.org/boing",
           qr/quux/,
-          "substitution test [http://sample.org/boing] [/quux/ should match]";
+          qq(substitution test [http://sample.org/boing] [/quux/ should match]);
 
 EOS
   "perl -Iblib/lib bin/simple_scan --gen --over --define foo=boing --define baz=splat<examples/ss_over_defer.in" => <<EOS,
@@ -54,7 +54,7 @@ use strict;
 my \@accent;
 page_like "http://sample.org/boing",
           qr/splat/,
-          "substitution test [http://sample.org/boing] [/splat/ should match]";
+          qq(substitution test [http://sample.org/boing] [/splat/ should match]);
 
 EOS
   "perl -Iblib/lib bin/simple_scan --debug --gen --over --define foo=boing --define baz=splat<examples/ss_over_defer.in" => <<EOS,
@@ -67,7 +67,7 @@ diag "Substitution foo not altered to 'bar'";
 diag "Substitution baz not altered to 'quux'";
 page_like "http://sample.org/boing",
           qr/splat/,
-          "substitution test [http://sample.org/boing] [/splat/ should match]";
+          qq(substitution test [http://sample.org/boing] [/splat/ should match]);
 
 EOS
 );

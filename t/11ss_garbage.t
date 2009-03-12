@@ -35,7 +35,7 @@ use strict;
 my \@accent;
 page_like "http://perl.org/",
           qr/perl/,
-          "Garbage lines were ignored [http://perl.org/] [/perl/ should match]";
+          qq(Garbage lines were ignored [http://perl.org/] [/perl/ should match]);
 
 EOF
 eq_or_diff(\@output, \@expected, "output as expected");

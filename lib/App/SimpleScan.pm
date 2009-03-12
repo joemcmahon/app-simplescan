@@ -1,6 +1,6 @@
 package App::SimpleScan;
 
-our $VERSION = '0.23';
+our $VERSION = '0.26';
 use 5.006;
 
 use warnings;
@@ -14,6 +14,7 @@ use WWW::Mechanize;
 use WWW::Mechanize::Pluggable;
 use Test::WWW::Simple;
 use App::SimpleScan::TestSpec;
+use Text::Balanced qw(extract_quotelike extract_multiple);
 
 my $reference_mech = new WWW::Mechanize::Pluggable;
 
@@ -29,6 +30,22 @@ my @local_pragma_support =
     ['agent'   => \&_do_agent],
     ['nocache'   => \&_do_nocache],
     ['cache'   => \&_do_cache],
+  );
+
+# Variables and setup for basic command-line options.
+my($generate, $run, $warn, $override, $defer, $debug);
+my($cache_from_cmdline, $no_agent);
+
+# Option-to-variable mappings for Getopt::Long
+my %basic_options = 
+  ('generate'  => \$generate,
+   'run'       => \$run,
+   'warn'      => \$warn,
+   'override'  => \$override,
+   'defer'     => \$defer,
+   'debug'     => \$debug,
+   'autocache' => \$cache_from_cmdline,
+   'no-agent'  => \$no_agent,
   );
 
 use base qw(Class::Accessor::Fast);
@@ -50,8 +67,6 @@ sub new {
   binmode(STDIN);
 
   $self->handle_options;
-
-  $self->_do_substitution("agent", "Windows IE 6");
 
   return $self;
 }
@@ -113,8 +128,11 @@ sub transform_test_specs {
       }
       else {
         # It's a substitution if it has no other meaning.
-        my @data = split /\s+/, $5 if defined $5;
-        $self->_substitution_data($1, @data);
+        if (defined($5)) {
+          my $var = $1;
+          my @data = _expand_backticked($5);
+          $self->_substitution_data($var, @data);
+        }
       }
       next;
     };
@@ -134,6 +152,62 @@ sub transform_test_specs {
       $self->test_count($self->test_count+($count));
     }
   }
+}
+
+sub _expand_backticked {
+  my ($text) = shift;
+
+  # Extract strings and backticked strings and just plain words.
+  my @data;
+  {
+    # extract_quotelike complains if no quotelike strings were found.
+    # Shut this up.
+    no warnings;
+
+    # The result of the extract multiple is to give us the whitespace
+    # between words and strings with leading whitespace before the
+    # first word of quotelike strings. Confused? This is what happens:
+    #
+    # for the string
+    #   a test `backquoted' "just quoted"
+    # we get
+    #   'a'
+    #   ' '
+    #  'test'
+    #  ' `backquoted'
+    #  `backquoted`
+    #  ' '
+    #  ' "just'
+    #  '"just quoted"'
+    #
+    # The grep removes all the strings starting with whitespace, leaving
+    # only the things we actually want.
+    @data = grep { /^\s/ ? () : $_ } 
+            extract_multiple($text, [qr/[^'"`\s]+/,\&extract_quotelike]);
+  
+  } 
+
+  local $_;
+  my @result;
+  for (@data) {
+    # eval a backticked string and split it the same way.
+    if (/^`(.*)$`/) {
+      push @result, _expand_backticked(eval $_);
+    }
+    # Double-quoted: remove quotes.
+    elsif (/^"(.*)"$/) {
+      push @result, $1;
+    }
+    # Single-quoted: remove quotes.
+    elsif (/^'(.*)'$/) {
+      push @result, $1;
+    }
+    # Not quoted at all: leave alone
+    else {
+      push @result, $_;
+    }
+  }
+  return @result;
 }
 
 sub _delete_substitution {
@@ -161,7 +235,7 @@ sub _do_substitution {
 
 sub _substitution_data {
   my ($self, $pragma_name, @pragma_values) = @_;
-  die "No pragma specified" unless defined $pragma_name;
+  croak "No pragma specified" unless defined $pragma_name;
 
   if (@pragma_values) {
     if (${$self->override} and $self->{Predefs}->{$pragma_name}) {
@@ -182,20 +256,6 @@ sub _substitution_data {
 
 sub handle_options {
   my ($self) = @_;
-
-  # Variables and setup for basic command-line options.
-  my($generate, $run, $warn, $override, $defer, $debug);
-  my($cache_from_cmdline);
-
-  my %basic_options = 
-    ('generate'  => \$generate,
-     'run'       => \$run,
-     'warn'      => \$warn,
-     'override'  => \$override,
-     'defer'     => \$defer,
-     'debug'     => \$debug,
-     'autocache' => \$cache_from_cmdline,
-    );
 
   # Handle options, including ones from the plugins.
   $self->install_options(%basic_options);
@@ -224,6 +284,14 @@ sub handle_options {
     $self->_do_substitution($def, 
                             (split /\s+/, $self->{Predefs}->{$def}));
   }
+
+  if (${$self->no_agent}) {
+    $self->_do_substitution("agent", "WWW::Mechanize::Pluggable");
+  }
+  else {
+    $self->_do_substitution("agent", "Windows IE 6");
+  }
+  
   $self->app_defaults;
 }
 
@@ -271,7 +339,18 @@ sub install_options {
     # you'll have to dereference it properly in
     # your code.
     (my($option, $receiver), @options) = @options;
+
+    # Method names containing dashes are a no-no;
+    # swap them to underscores. (This is okay because
+    # no one outside this module should be trying to
+    # call these methods directly.)
+    $option =~ s/-/_/g;
+
     $self->{Options}->{$option} = $receiver;
+
+    # Ensure that the variables have been cleared if we create another
+    # App::SimpleScan object (normally we won't, but our tests do).
+    $$receiver = undef;
 
     # Create method if it doesn't exist.
     unless ($self->can($option)) {
@@ -363,11 +442,12 @@ sub stack_test {
 sub finalize_tests {
   my ($self) = @_;
   my @tests = @{$self->tests};
+  my @prepends;
   foreach my $plugin (__PACKAGE__->plugins) {
     my @modules = $plugin->test_modules if $plugin->can('test_modules');
-    unshift @tests, "use $_;\n" foreach @modules;
+    push @prepends, "use $_;\n" foreach @modules;
   }
-  unshift @tests, 
+  unshift @prepends, 
     (
       "use Test::More tests=>" . $self->test_count . ";\n",
       "use Test::WWW::Simple;\n",
@@ -375,7 +455,21 @@ sub finalize_tests {
       "\n",
       "my \@accent;\n",
     );
-  $self->tests([@tests]);
+  
+  # Handle conditional user agent initialization.
+  # This was added because some servers (e.g., WAP
+  # servers) refuse connections from known user agents,
+  # but others (e.g., Yahoo!'s web servers) refuse 
+  # login attempts from non-browser user agents.
+  #
+  # Set the user agent unless --no-agent was given.
+
+  if (!$self->no_agent) {
+    push @prepends, qq(mech->agent_alias("Windows IE 6");\n);
+  }
+  
+  
+  $self->tests( [ @prepends, @tests ] );
 }
 
 1; # Magic true value required at end of module

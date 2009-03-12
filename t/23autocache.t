@@ -12,7 +12,7 @@ my \@accent;
 cache;
 page_like "http://yahoo.com/",
           qr/Yahoo/,
-          "branding [http://yahoo.com/] [/Yahoo/ should match]";
+          qq(branding [http://yahoo.com/] [/Yahoo/ should match]);
 
 
 EOF

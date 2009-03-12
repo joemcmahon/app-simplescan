@@ -21,7 +21,11 @@ App::SimpleScan - Mini-language for website testing
 
 =head1 SYNOPSIS
 
-  simple_scan [--generate] [--run] {file file file ...}
+  simple_scan [--generate] [--run] 
+              [--define key="value value ..." ] [--override] [--defer]
+              [--debug]
+              [--autocache]
+              {file file file ...}
 
 =head1 USAGE
 
@@ -111,7 +115,7 @@ Also note that you define a variable with multiple values like this:
 
   --define foo="bar baz quux"
 
-butB<not> like this:
+but B<not> like this:
 
   --define foo=bar --define foo=baz --define foo=quux
 
@@ -198,6 +202,35 @@ you specify. For instance:
 This would generate 4 tests, for C<es.mysite.com>, C<au.mysite.com>, 
 c<my.mysite.com>, and C<jp.mysite.com>, all looking to match C<blargh> 
 somewhere on the page.
+
+You may also use quoted strings:
+
+   %%searchtext "this one" 'that one' "another one"
+
+The spaces will be preserved in the values assigned to C<searchtext>.
+
+In addition, you can use backticked strings to denote a command to be
+executed by the shell; the command's output will be used in place of
+the quoted string.
+
+As an example, if we have the script C<languages> which looks like this:
+
+  #!/bin/sh
+  echo "perl java python ruby"
+
+and the substitution
+
+  %%language `languages`
+
+then the values finally assigned to C<language> would be 
+C<perl java ruby python>.
+
+All of the different forms can be mixed on one line, so
+
+  %%try `some_command "value one" value2
+
+would set C<try> to the output of C<some_command>,
+C<value one>, and C<value2>.
 
 =head2 agent
 

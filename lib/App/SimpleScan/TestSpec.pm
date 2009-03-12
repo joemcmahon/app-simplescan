@@ -5,7 +5,7 @@ use bytes;
 
 use strict;
 
-our $VERSION = "0.17";
+our $VERSION = "0.18";
 
 __PACKAGE__->mk_accessors(qw(raw uri regex delim kind comment metaquote syntax_error accented flags test_count));
 
@@ -16,19 +16,19 @@ my %test_type =
     'Y' => <<EOS,
 page_like "<uri>",
           qr<delim><regex><delim><flags>,
-          "<comment> [<uri>] [<delim><regex><delim><flags> should match]";
+          qq(<comment> [<uri>] [<delim><regex><delim><flags> should match]);
 EOS
     'N' => <<EOS,
 page_unlike "<uri>",
             qr<delim><regex><delim><flags>,
-            "<comment> [<uri>] [<delim><regex><delim><flags> shouldn't match]";
+            qq(<comment> [<uri>] [<delim><regex><delim><flags> shouldn't match]);
 EOS
     'TY' => <<EOS,
 TODO: {
   local \$Test::WWW::Simple::TODO = "Doesn't match now but should later";
   page_like "<uri>",
             qr<delim><regex><delim><flags>,
-            "<comment> [<uri>] [<delim><regex><delim><flags> should match]";
+            qq(<comment> [<uri>] [<delim><regex><delim><flags> should match]);
 }
 EOS
     'TN' => <<EOS,
@@ -36,7 +36,7 @@ TODO: {
   local \$Test::WWW::Simple::TODO = "Matches now but shouldn't later";
   page_unlike "<uri>",
               qr<delim><regex><delim><flags>,
-              "<comment> [<uri>] [<delim><regex><delim><flags> shouldn't match]";
+              qq(<comment> [<uri>] [<delim><regex><delim><flags> shouldn't match]);
 }
 EOS
     'SY' => <<EOS,
@@ -44,7 +44,7 @@ SKIP: {
   skip 'Deliberately skipping test that should match', 1; 
   page_like "<uri>",
             qr<delim><regex><delim><flags>,
-            "<comment> [<uri>] [<delim><regex><delim><flags> should match]";
+            qq(<comment> [<uri>] [<delim><regex><delim><flags> should match]);
 }
 EOS
     'SN' => <<EOS,
@@ -52,7 +52,7 @@ SKIP: {
   skip "Deliberately skipping test that shouldn't match", 1; 
   page_unlike "<uri>",
               qr<delim><regex><delim><flags>,
-              "<comment> [<uri>] [<delim><regex><delim><flags> shouldn't match]";
+              qq(<comment> [<uri>] [<delim><regex><delim><flags> shouldn't match]);
 }
 EOS
   );
@@ -260,6 +260,7 @@ sub _substitute {
   # recurse if this is the last one.
   my $mine;
   ($mine, @var_names) = @var_names;
+
   $tests_ref = $self->_substitute($tests_ref, @var_names)
     if @var_names;
 
@@ -458,7 +459,10 @@ None reported.
 
 =head1 BUGS AND LIMITATIONS
 
-No bugs have been reported.
+Using capturing parentheses in a regex that will be matching non-ASCII characters
+wil lead to confusion and heartbreak, as this will throw off the capturing of the
+accent characters. If you need to do this, do the capturing separate from the 
+check of the accented characters.
 
 Please report any bugs or feature requests to
 C<bug-app-simplescan@rt.cpan.org>, or through the web interface at

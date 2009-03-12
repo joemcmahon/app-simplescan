@@ -9,7 +9,7 @@ use strict;
 my \@accent;
 page_like "http://fake.video.fr/q=clips+pour+madonna",
           qr/Recherche de vid(.|..)os <b>pour/,
-          "French video matches [http://fake.video.fr/q=clips+pour+madonna] [/Recherche de vid(.|..)os <b>pour/ should match]";
+          qq(French video matches [http://fake.video.fr/q=clips+pour+madonna] [/Recherche de vid(.|..)os <b>pour/ should match]);
 \@accent = (mech->content =~ /Recherche de vid(.|..)os <b>pour/);
 is \$accent[0], "é", "Accent char 0 as expected";
 EOS

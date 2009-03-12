@@ -32,9 +32,62 @@ Test specifications describe
 
 =item * some I<content> (in the form of a Perl regular expression) that you want look for
 
-=item * 
+=item * whether or not it should be there
+
+=item * and a comment about why you care
 
 =back
+
+=head2 Matching non-ASCII Latin-1 characters
+
+First: be sure that the non-ASCII character you're seeing on the screen is actually
+present in the HTML source. You could be looking at an HTML entity that gets rendered
+as the character in question. For instance a degree symbol is actually C<&xB0;>. 
+
+You can match a specific entity with its actual text:
+
+  /&x[bB]0;/
+
+(Note that we've made sure that it will work whether the hex "digits" are upper or
+lowercase.) Or you can match an arbitrary entity:
+
+  /&.*?;/
+
+This one will also match things like C<&amp;> and C<&brkbar;> - with great power
+comes relative imprecision. There's a handy table of Latin-1 entities at
+L<http://www.ramsch.org/martin/uni/fmi-hp/iso8859-1.html>.
+
+In some cases (e.g., Yahoo!'s fr.search search results), there will actually be
+non-Latin1 characters that are not HTML encoded. This is probably not good 
+practice, but it still exists here and there. To deal with pages like this,
+copy and paste the exact text from a "view source" into the regex you want 
+to use. C<simple_scan> will try to spot all of the non-ASCII characters and
+add special tests for them.
+
+=over 4
+
+Note to advanced regex wielders: using capturing parentheses along with
+non-Latin characters will cause test failures if the capturing parens
+appear in the pattern before the non-ASCII character(s). This is because 
+the pattern transformation needed to accurately match the non-ASCII
+characters requires that we replaced them with capturing parentheses
+to, well, capture the non-ASCII characters and test them directly with
+C<eq>. If you add your own capturing parentheses before the non-ASCII
+characters, you throw the capture off, and the comparison will fail.
+
+So: either break the test up into multiple parts, with the parens you
+add to the pattern in one part and the non-ASCII characters in another,
+or use non-capturing parentheses for grouping:
+
+  (?:foo|bar|baz)
+
+This allows you to group alternatives without capturing anything, thus
+keeping C<simple_scan>'s head on straight when it comes to non-ASCII characters.
+
+=back
+
+The best solution? Find the developer concerned and have a chat about
+encoding entities. 
 
 =head1 PLUGINS
 

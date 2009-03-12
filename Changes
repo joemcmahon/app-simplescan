@@ -1,5 +1,13 @@
 Revision history for App-SimpleScan
 
+0.26  Thu Jan 12 12:05:05 PST 2006
+	- added support for backticked and quoted substitutions
+
+0.25  (unreleased)
+	- added --no_agent command line option
+
+0.24  (unreleased) 
+
 0.23  Tue Dec  6 17:10:59 PST 2005
 	- Reordered code generation so that per_test
 	  plugin code gets called every time a test is stacked

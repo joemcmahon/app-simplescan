@@ -34,7 +34,7 @@ $spec->kind('Y');
 $expected = <<EOS;
 page_like "http://search.yahoo.com",
           qr/yahoo/s,
-          "No comment [http://search.yahoo.com] [/yahoo/s should match]";
+          qq(No comment [http://search.yahoo.com] [/yahoo/s should match]);
 EOS
 eq_or_diff [split /\n/,($spec->as_tests)[1]], [split /\n/, $expected], "Y works";
 
@@ -42,7 +42,7 @@ $spec->kind('N');
 $expected = <<EOS;
 page_unlike "http://search.yahoo.com",
             qr/yahoo/s,
-            "No comment [http://search.yahoo.com] [/yahoo/s shouldn't match]";
+            qq(No comment [http://search.yahoo.com] [/yahoo/s shouldn't match]);
 EOS
 eq_or_diff [split /\n/, ($spec->as_tests)[1]], [split /\n/, $expected], "N works";
 
@@ -52,7 +52,7 @@ TODO: {
   local \$Test::WWW::Simple::TODO = "Doesn't match now but should later";
   page_like "http://search.yahoo.com",
             qr/yahoo/s,
-            "No comment [http://search.yahoo.com] [/yahoo/s should match]";
+            qq(No comment [http://search.yahoo.com] [/yahoo/s should match]);
 }
 EOS
 eq_or_diff [split /\n/, ($spec->as_tests)[1]], [split /\n/, $expected], "TY works";
@@ -63,7 +63,7 @@ TODO: {
   local \$Test::WWW::Simple::TODO = "Matches now but shouldn't later";
   page_unlike "http://search.yahoo.com",
               qr/yahoo/s,
-              "No comment [http://search.yahoo.com] [/yahoo/s shouldn't match]";
+              qq(No comment [http://search.yahoo.com] [/yahoo/s shouldn't match]);
 }
 EOS
 eq_or_diff [split /\n/, ($spec->as_tests)[1]], [split /\n/, $expected], "TN works";

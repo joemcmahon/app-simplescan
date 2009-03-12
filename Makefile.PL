@@ -18,6 +18,7 @@ WriteMakefile(
         'Regexp::Common'       => 0,
         'WWW::Mechanize'       => '1.16',
         'WWW::Mechanize::Pluggable' => '0.09',
+        'Text::Balanced'       => '1.95',
 
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },

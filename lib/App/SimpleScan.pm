@@ -1,6 +1,6 @@
 package App::SimpleScan;
 
-our $VERSION = '0.32';
+our $VERSION = '0.34';
 use 5.006;
 
 use warnings;
@@ -149,7 +149,7 @@ sub transform_test_specs {
         # It's a substitution if it has no other meaning.
         if (defined($5)) {
           my $var = $1;
-          my @data = _expand_backticked($5);
+          my @data = expand_backticked($5);
           my ($status, $message) = $self->_check_dependencies($var, @data);
           if ($status) {
             $self->_substitution_data($var, @data);
@@ -182,7 +182,7 @@ sub transform_test_specs {
     # which is probably *not* what is wanted.
     # Putting this here makes sure that we only
     # substitute into actual test specs.
-    next if $self->_queue_substitutions($_);
+    next if $self->_queue_var_names($_);
 
     # No substitutions in this line, so just process it.
     my $item = App::SimpleScan::TestSpec->new($_);
@@ -208,7 +208,7 @@ sub transform_test_specs {
 }
 
 # Handle backticked values in substitutions.
-sub _expand_backticked {
+sub expand_backticked {
   my ($text) = shift;
 
   # Extract strings and backticked strings and just plain words.
@@ -246,7 +246,7 @@ sub _expand_backticked {
   for (@data) {
     # eval a backticked string and split it the same way.
     if (/^`(.*)$`/) {
-      push @result, _expand_backticked(eval $_);
+      push @result, expand_backticked(eval $_);
     }
     # Double-quoted: eval it.
     elsif (/^"(.*)"$/) {
@@ -282,7 +282,7 @@ sub _delete_substitution {
 }
 
 # Get all active substitutions.
-sub _substitutions {
+sub _var_names {
   my ($self) = @_;
   keys %{$self->{Substitution_data}} 
     if defined $self->{Substitution_data};
@@ -291,9 +291,9 @@ sub _substitutions {
 # If the current thing has substitutions in it,
 # queue those onto the input and return true.
 # Else return false.
-sub _queue_substitutions {
+sub _queue_var_names {
   my($self, $line) = @_;
-  my $results = $self->_substitute([$line], $self->_substitutions);
+  my $results = $self->_substitute($line, $self->_var_names);
   if (@$results != 1) {
     # substitutions definitely happened
     $self->queue_lines(@$results);
@@ -312,66 +312,96 @@ sub _queue_substitutions {
 
 # Actually do variable substitutions.
 sub _substitute {
-  my($self, $tests_ref, @var_names) = @_;
- 
-  # Haven't bottomed out yet. Save one to
-  # do and pass rest to recursion. Don't
-  # recurse if this is the last one.
-  my $mine;
-  ($mine, @var_names) = @var_names;
+  my($self, $line, @var_names) = @_;
 
-  $tests_ref = $self->_substitute($tests_ref, @var_names)
-    if @var_names;
+  my %alteration_for =();
 
-  # Handle the current substitution over the tests we
-  # currently have.
-  my @results;
-  my $original;
-  my $changed;
-
-  foreach my $test (@$tests_ref) {
-    # Save the original (in case there are no substitutions).
-    $original = $test;
-
-    foreach my $value ($self->_substitution_data($mine)) {
-      # Restore the unsubstituted version.
-      $test = $original;
-
-      # No changes made yet.
-      $changed = 0;
-
-      # change it if we need to and remember we did.
-      $changed ||= ($test =~ s/<$mine>/$value/g);
-      $changed ||= ($test =~ s/>$mine</$value/g);
-
-      # Save it if we changed it.
-      if ($changed) {
-        push @results, $test;
-      }
-
-      # Don't keep trying to substitute if we didn't
-      # change anything.
-      else {
-        last;
-      }
-    }
-
-    # Push the unchanged version if there was nothing
-    # to change.
-    unless ($changed) {
-      push @results, $original;
-    }
+  # Count the number of items for each substitution,
+  # and the maximum combination index.
+  my %item_count_for;
+  my $max_combination = 1;
+  for my $var_name (sort @var_names) {
+     $max_combination *= 
+      $item_count_for{$var_name} = () = 
+        $self->_substitution_value($var_name);
   }
 
-  # Return whatever we've generated, either up one
-  # level of the recursion, or to the original caller.
-  return \@results;
+  for my $i (0 .. $max_combination-1) {
+    # Convert the combination index into a hash of
+    # data indexed out of the substitution value lists.
+    my %current_value_of = $self->_comb_index($i, %item_count_for);
+
+    # Substitute the new current values into
+    # the line until it stops changing, and then save
+    # this line.
+    my $new_line = $line;
+    my $line_changed = 1;
+    my %change_count_for = ();
+    while ($line_changed) {
+      $line_changed = 0;
+      for my $var_name (@var_names) {
+        my $current_value = $current_value_of{$var_name};
+        my $var_inserted;
+        $var_inserted ||= ($new_line =~ s/>$var_name</$current_value/g);
+        $var_inserted ||= ($new_line =~ s/<$var_name>/$current_value/g);
+        if ($var_inserted) {
+          $change_count_for{$current_value}++;
+          $line_changed++;
+        }
+      }
+    }
+
+    # The "alteration key" is the values substituted into the line.
+    # We sort the keys to prevent random key access from confusing us.
+    # %change_count_for is keyed by the *values* substituted in, so 
+    # we get a different substitution key for each unique set of values.
+    # this makes sure we get all of the distinct possibilities and 
+    # eliminate duplicates.
+    local $_;
+    my $alteration_key = "@{[sort keys %change_count_for]}";
+    $alteration_for{$alteration_key} = $new_line;
+  }
+  return [sort values %alteration_for];
+}
+
+sub _comb_index {
+  my($self, $index, %item_counts) = @_;
+  my @indexes = $self->_comb($index, %item_counts);
+  my $i = 0;
+  local $_;
+  my %selection_for;
+  my @ordered_keys = sort keys %item_counts;
+  my %base_map_of = map { $_ => $i++ } @ordered_keys;
+  for my $var (@ordered_keys) {
+    $selection_for{$var} = $self->_substitution_data($var)->[$indexes[$base_map_of{$var}]];
+  }
+  return %selection_for;
+}
+
+sub _comb {
+  my($self, $index, %item_counts) = @_;
+  my @base_order = sort keys %item_counts;
+  my @comb;
+  my $place = 0;
+
+  # All indexes must start at zero.
+  my $number_of_items = scalar keys %item_counts;
+  push @comb, 0 while $number_of_items--;
+
+  # convert from base 10 to the derived multi-base number
+  # that maps into the indexes into the possible values.
+  while ($index) {
+    $comb[$place] = $index % $item_counts{$base_order[$place]};
+    $index = int($index/$item_counts{$base_order[$place]});
+    $place++;
+  }
+  return @comb;
 }
 
 # setter/getter for substitution data.
 # - setter needs a name and a list of values.
 # - getter needs a name, returns a list of values.
-sub _do_substitution {
+sub _substitution_value {
   my ($self, $pragma_name, @pragma_values) = @_;
   die "No pragma specified" unless defined $pragma_name;
   if (@pragma_values) {
@@ -395,11 +425,11 @@ sub _substitution_data {
         if ${$self->debug};
     }
     else {
-      $self->_do_substitution($pragma_name, @pragma_values);
+      $self->_substitution_value($pragma_name, @pragma_values);
     }
   }
   else {
-    $self->_do_substitution($pragma_name);
+    $self->_substitution_value($pragma_name);
   }
   return 
     wantarray ? @{$self->{Substitution_data}->{$pragma_name}}
@@ -433,15 +463,15 @@ sub handle_options {
 
   # If anything was predefined, save it in the substitutions.
   for my $def (keys %{$self->{Predefs}}) {
-    $self->_do_substitution($def, 
+    $self->_substitution_value($def, 
                             (split /\s+/, $self->{Predefs}->{$def}));
   }
 
   if (${$self->no_agent}) {
-    $self->_do_substitution("agent", "WWW::Mechanize::Pluggable");
+    $self->_substitution_value("agent", "WWW::Mechanize::Pluggable");
   }
   else {
-    $self->_do_substitution("agent", "Windows IE 6");
+    $self->_substitution_value("agent", "Windows IE 6");
     $self->stack_code("mech->agent_alias('Windows IE 6');\n");
   }
   
@@ -525,9 +555,18 @@ sub install_options {
 # Load all the plugins.
 sub _load_plugins {
   my($self) = @_;
+
+  # Load plugins.
   foreach my $plugin (__PACKAGE__->plugins) {
     eval "use $plugin";
     $@ and die "Plugin $plugin failed to load: $@\n";
+  }
+
+  # Install source filters
+  $self->{Filters} = [];
+  foreach my $plugin (__PACKAGE__->plugins) {
+    push @{$self->{Filters}}, $plugin->filters() if
+      $plugin->can('filters');
   }
 }
 
@@ -630,6 +669,11 @@ sub stack_code {
 # in our test plan.
 sub stack_test {
   my($self, @code) = @_;
+  for my $filter (@{$self->{Filters}}) {
+    # Called with $self to make it appear
+    # as if it's a method call from this package.
+    @code = $filter->($self, @code);
+  }
   $self->stack_code(@code);
   $self->test_count($self->test_count()+1);
 }
@@ -696,7 +740,13 @@ sub finalize_tests {
 # dependent.
 
 sub _check_dependencies {
-  return 1, "dummied out";
+  my ($self, $child, @parents) = @_;
+  @parents = grep { /^<.*>$/ } @parents;
+  return 1, "no dependencies" unless @parents;
+
+  $self->_depend($child, @parents);
+  
+  return $self->_tsort();
 }
 
 sub _depend {
@@ -782,27 +832,55 @@ this module or this C<simple_scan> application.
 
 =head1 INTERFACE
 
-=head2 new 
+=head2 Class methods
 
 Creates a new instance of the application.
 
-=head2 create_tests
+=head2 new 
+
+=head2 Instance methods
+
+=head3 Execution methods
+
+=head4 go
+
+Executes the application. Calls C<create_tests> to handle the
+actual test creation.
+
+=head4 create_tests
 
 Reads the test input and expands the tests into actual code.
 
-=head2 go
+=head2 transform_test_specs
 
-Executes the application. Calls C<create_test> to handle the
-actual test creation.
+Does all the work of transforming test specs into code.
 
-=head2 handle_options
+=head2 finalize_tests
+
+Adds all of the Perl modules required to run the tests to the 
+test code generated by this module. 
+
+=head2 execute
+
+Actually run the generated test code. Currently just C<eval>'s
+the generated code.
+
+=head3 Options methods
+
+=head4 parse_command_line
+
+Parses the command line and sets the corresponding fields in the
+C<App::SimpleScan> object. See the X<EXTENDING SIMPLESCAN> section 
+for more information.
+
+=head4 handle_options
 
 This method initializes your C<App::SimpleScan> object. It installs the
 standard options (--run, --generate, and --warn), installs any
 options defined by plugins, and then calls C<parse_command_line> to
 actually parse the command line and set the options.
 
-=head2 install_options(option => receiving_variable, "method_name")
+=head4 install_options(option => receiving_variable, "method_name")
 
 Installs an entry into the options description passed
 to C<GeOptions> when C<parse_command_line> is called. This 
@@ -815,33 +893,47 @@ single call. Remember that your option definitions will cause
 a new method to be created for each option; be careful not to
 accidentally override a pre-existing method.
 
-=head2 parse_command_line
-
-Parses the command line and sets the corresponding fields in the
-C<App::SimpleScan> object. See the X<EXTENDING SIMPLESCAN> section 
-for more information.
-
-=head2 app_defaults
+=head4 app_defaults
 
 Set up the default assumptions for the application. The base method
 simply turns C<run> on if neither C<run> nor C<generate> is specified.
 
-=head2 install_pragma_plugins
+=head2 Pragma methods
+
+=head3 install_pragma_plugins
 
 This installs the standard pragmas (C<cache>, C<nocache>, and 
 C<agent>) and any supplied by the plugins.
 
-=head2 transform_test_specs
+=head3 pragma
 
-Does all the work of transforming test specs into code.
+Provides access to pragma-processing code. Useful in plugins to 
+get to the pragmas installed for the plugin concerned.
 
-=head2 next_line
+=head2 Input/output methods
+
+=head3 next_line
 
 Reads the next line of input, handling the possibility that a plugin 
 has stacked lines on the input queue to be read and processed (or
 perhaps reprocessed).
 
-=head2 queue_lines
+=head3 expand_backticked
+
+Expands single-quoted, double-quoted, and backticked items in a
+text string as follows:
+
+=over 4 
+
+=item * single-quoted: remove the quotes and use the string as-is.
+
+=item * double-quoted: eval() the string in the current context and embed the result.
+
+=item * backquoted: evaluate the string as a shell command and embed the output.
+
+=back
+
+=head3 queue_lines
 
 Queues one or more lines of input ahead of the current "next line".
 
@@ -860,41 +952,26 @@ to this routine are queued I<ahead> of those lines, like this:
 This is done so that if a pragma queues lines which are other pragmas,
 these get processed before any other pending input does.
 
-=head2 set_current_spec
+=head3 set_current_spec
 
 Save the argument passed as the current test spec. If no 
 argument is passed, sets the current spec to undef.
 
-=head2 get_current_spec
+=head3 get_current_spec
 
 Retrieve the current test spec. 
 
-=head2 stack_code
+=head3 stack_code
 
 Adds code to the final output without incrementing the number of tests.
 
-=head2 stack_test
+=head3 stack_test
 
 Adds code to the final output and bumps the test count by one.
 
-=head2 pragma
-
-Provides access to pragma-processing code. Useful in plugins to 
-get to the pragmas installed for the plugin concerned.
-
-=head2 finalize_tests
-
-Adds all of the Perl modules required to run the tests to the 
-test code generated by this module. 
-
-=head2 tests
+=head3 tests
 
 Accessor that stores the test code generated during the run.
-
-=head2 execute
-
-Actually run the generated test code. Currently just C<eval>'s
-the generated code.
 
 =head1 EXTENDING SIMPLESCAN
 
@@ -951,21 +1028,17 @@ its argument, and will increment the test count by one. You
 should use multiple calls to C<stack_test> if you need
 to stack more than one test.
 
-=item * per_test()
+=item * filter(CODEREF)
 
-If a pragma wants to stack code that will be emitted for
-every test, it should implement a  C<per_test> method.
-This will be called by C<App::SimpleScan::TestSpec> for
-every testspec processed.
+If a plugin wants to filter code that is about to be stacked,
+it should implement a C<filter()> method. This method receives 
+the line or lines of code that are about to be stacked, and
+may transform them as it chooses, returning the transformed
+text as its value.
 
-Code to be emitted I<before> the current test should
-be emitted via calls to C<stack_code> and C<stack_test>.
-
-Code to be emitted I<after> the current test should be
-I<returned> to the caller, along with a count indicating 
-how many tests are included in the returned code. You
-can return zero to indicate that none of the returned
-code is tests.
+If a filter chooses to stack tests itself, the filter is 
+responsible for bumping the test count with a call to 
+C<test_count>.
 
 =back
 

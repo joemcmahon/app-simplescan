@@ -14,6 +14,10 @@ sub import {
   *{caller() . '::test_expand'}  = \&test_expand;
 }
 
+sub filters {
+  return \&filter;
+}
+
 sub init {
   my ($class, $app) = @_;
   no strict 'refs';
@@ -49,10 +53,11 @@ sub test_expand_pragma {
   $self->stack_code(qq(# Adding test expansion comment\n));
 }
 
-sub per_test {
-  my($class, $testspec) = @_;
-  return unless $testspec->app->test_expand;
-  return 0, qq(# per-test comment\n);
+sub filter {
+  my($app, @code) = @_;
+  return @code unless $app->test_expand;
+  push @code, qq(# per-test comment\n);
+  return @code;
 }
 
 1; # Magic true value required at end of module

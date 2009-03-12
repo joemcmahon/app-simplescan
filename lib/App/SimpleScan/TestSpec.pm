@@ -5,7 +5,7 @@ use bytes;
 
 use strict;
 
-our $VERSION = "0.15";
+our $VERSION = "0.17";
 
 __PACKAGE__->mk_accessors(qw(raw uri regex delim kind comment metaquote syntax_error accented flags test_count));
 
@@ -233,18 +233,23 @@ sub as_tests {
     }
   }
 
-  # Call any plugin per_test routines.
-  for my $plugin ($app->plugins) {
-    push @tests, 
-      $plugin->per_test($self)
-        if $plugin->can('per_test');
-  }
 
   # Make any variable substitutions
   my $current_in_tests = int @tests;
   my @generated = @{$self->_substitute([@tests], $self->app->_substitutions)};
-  return  $self->test_count+(scalar @generated - scalar @tests),
-          @generated;
+  $self->test_count($self->test_count()+(scalar @generated - scalar @tests));
+
+  # Call any plugin per_test routines.
+  my @merged;
+  for my $test_code (@generated) {
+    push @merged, $test_code;
+    for my $plugin ($app->plugins) {
+      push @merged, 
+        $plugin->per_test($self)
+          if $plugin->can('per_test');
+    }
+  }
+  return $self->test_count(),@merged;
 }
 
 sub _substitute {

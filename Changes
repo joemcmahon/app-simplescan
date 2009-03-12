@@ -1,5 +1,14 @@
 Revision history for App-SimpleScan
 
+0.23  Tue Dec  6 17:10:59 PST 2005
+	- Reordered code generation so that per_test
+	  plugin code gets called every time a test is stacked
+        - Added test plugin (t/lib/App/SimpleScan/Plugin/Test_Expand)
+	  to properly test substitution expansion
+	- Added substitution expansion test to fix a bug
+	  that emitted per_test code only for the last test in
+	  a set that was created by substitution expansion
+
 0.22  Mon Nov 28 11:01:37 2005
 	- Missing prereqs in Makefile.PL corrected
 

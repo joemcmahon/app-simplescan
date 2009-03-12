@@ -1,6 +1,4 @@
-.cvsignore
 bin/simple_scan
-bin/simple_scan.yahoo
 Changes
 examples/ss.in
 examples/ss_blank.in
@@ -15,8 +13,15 @@ examples/ss_nodouble.in
 examples/ss_over_defer.in
 examples/ss_user_agent.in
 lib/App/SimpleScan.pm
+lib/App/SimpleScan/Cookbook.pm
 lib/App/SimpleScan/TestSpec.pm
 Makefile.PL
+man/man1/App::SimpleScan.1
+man/man1/App::SimpleScan::TestSpec.1
+man/man1/App::SimpleScan::TestSpect.1
+man/man1/simple_scan.1
+man/man3/App::SimpleScan.3
+man/man3/App::SimpleScan::TestSpec.3
 MANIFEST
 META.yml			# Will be created by "make dist"
 README
@@ -43,6 +48,7 @@ t/20ss_opts2.t
 t/21todoskip.t
 t/22specplugin.t
 t/23autocache.t
+t/24per_test.t
+t/App/SimpleScan/Plugin/TestExpand.pm
 t/pod-coverage.t
 t/pod.t
-t/App/SimpleScan/Plugin/Tester.pm

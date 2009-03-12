@@ -61,13 +61,13 @@ t/30diags.t
 t/31snapshot.t
 t/32env.t
 t/33queue.t
-t/34tsort.t
 t/35comb.t
 t/36deps.t
 t/37sr_status.t
 t/38ss_status.t
 t/39backslash.t
 t/40inputq.t
+t/41extract.t
 t/App/SimpleScan/Plugin/TestExpand.pm
 t/App/SimpleScan/Plugin/TestNextLine.pm
 t/critic.t

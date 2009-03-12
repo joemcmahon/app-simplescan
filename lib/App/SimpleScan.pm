@@ -4,7 +4,7 @@ use warnings;
 use strict;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.16';
+our $VERSION = '1.17';
 
 use Carp;
 use Getopt::Long;
@@ -14,12 +14,12 @@ use WWW::Mechanize;
 use WWW::Mechanize::Pluggable;
 use Test::WWW::Simple;
 use App::SimpleScan::TestSpec;
-use Text::Balanced qw(extract_quotelike extract_multiple);
+use Graph;
 
 use Module::Pluggable search_path => [qw(App::SimpleScan::Plugin)];
 
 use base qw(Class::Accessor::Fast);
-__PACKAGE__->mk_accessors(qw(tests test_count next_line_callbacks));
+__PACKAGE__->mk_accessors(qw(tests test_count next_line_callbacks _deps _subs));
 
 my $reference_mech = new WWW::Mechanize::Pluggable;
 $|++;                                                   ##no critic
@@ -65,15 +65,16 @@ use base qw(Class::Accessor::Fast);
 sub new {
   my ($class) = @_;
   my $self = {};
-  $self->{Substitution_data}= {};
   bless $self, $class;
+
+  $self->_deps(Graph->new);
+  $self->_subs({});
 
   # initialize fields first; plugins may expect good values.
   $self->next_line_callbacks([]);
   $self->tests([]);
   $self->test_count(0);
   $self->{InputQueue} = [];
-  $self->{PragmaDepend} = {};
 
   # Load and install the plugins.
   $self->_load_plugins();
@@ -282,54 +283,45 @@ sub finalize_tests {
 
 # Handle backticked values in substitutions.
 sub expand_backticked {
+  use re 'eval';
+
   my ($self, $text) = @_;
-  local $_;                                              ##no critic
 
-  # Extract strings and backticked strings and just plain words.
-  my @data;
-  # extract_quotelike complains if no quotelike strings were found.
-  # Shut this up by adding one and throwing it away after. Sadly, 
-  # 'no warnings' will NOT shut it up.
+  # The state machine was a really cool idea, except it didn't work. :-P
+  # A little reading in Mastering Regular Expressions gave me the patterns
+  # shown below for matching quoted strings.
 
-  # The result of the extract multiple is to give us the whitespace
-  # between words and strings with leading whitespace before the
-  # first word of quotelike strings. Confused? This is what happens:
-  #
-  # for the string
-  #   a test `backquoted' "just quoted"
-  # we get
-  #   'a'
-  #   ' '
-  #  'test'
-  #  ' `backquoted'
-  #  `backquoted`
-  #  ' '
-  #  ' "just'
-  #  '"just quoted"'
-  #
-  # The grep removes all the strings starting with whitespace, leaving
-  # only the things we actually want.
-  @data = grep { /^\s/mx ? () : $_ } 
-          extract_multiple($text . q( '***-Your-string-may-have-mismatched-quotes-or-newlines-in-it-***'), 
-                           [qr/[^'"`\s]+/,\&extract_quotelike]);
-  # Throw away the garbage.
-  pop @data;
-  if (grep { $_ eq q(***-Your-string-may-have-mismatched-quotes-or-newlines-in-it-***)} @data) {
-    if (${$self->warn}) {
-      $self->stack_code(<<"END_MSG") 
-# $text
-# This line has an unmatched quote of some kind and was skipped.
-# Subsequent lines may have a problem if this was because of a newline.
-END_MSG
-    }
-    # Remove garbage indicator.
-    @data = grep {$_ ne q(***-Your-string-may-have-mismatched-quotes-or-newlines-in-it-***)} @data;
-  } 
+  # For an explanation of why this works, see Friedl, p. 262 ff.
+  # It's called "unrolling" the regex there.
 
+  #  Pattern: quote (nonspecial)*(escape anything (nonspecial)*)* quote
+  my $qregex  = qr/'[^'\\]*(\\.[^'\\]*)*'/;
+  my $qqregex = qr/"[^"\\]*(\\.[^"\\]*)*"/;
+  my $qxregex = qr/`[^`\\]*(\\.[^`\\]*)*`/;
+
+  # Plus we need the cleanup tokenizer: match anything nonblank. This
+  # picks up tokens that are not properly-balanced quoted strings.
+  # We'll trap those later, or not. We'll see.
+  my $cleanup = qr/\S+/;
+
+  # An item is a quoted string of any flavor, or the cleanup item.
+  # We turn on the capturing parens here because it we match an item,
+  # we want it.
+  my $item = qr/($qqregex|$qregex|$qxregex|$cleanup)/;
+
+  # So now, to extract the items, we just match this with /g against the
+  # incoming text. We know already this is a single line, so we don't need
+  # any other switches. Boy, that's simpler.
+  my @data = ($text =~ /$item/g);
+
+  # Evaluate the tokens. 
   my @result;
+  local $_;
   for (@data) {
-    # eval a backticked string and split it the same way.
-    if (/^`(.*)$`/mx) {
+    next unless defined;
+
+    # Backticked: eval and process again.
+    if (/^\`(.*)`$/mx) {
       push @result, $self->expand_backticked(eval $_);      ##no critic
     }
     # Double-quoted: eval it.
@@ -340,7 +332,7 @@ END_MSG
     elsif (/^'(.*)'$/mx) {
       push @result, $1;
     }
-    # Not quoted at all: leave alone
+    # Just an unquoted token. Save it.
     else {
       push @result, $_;
     }
@@ -364,19 +356,14 @@ sub get_current_spec {
 
 sub _delete_substitution {
   my ($self, $pragma_name) = @_;
-  delete $self->{Substitution_data}->{$pragma_name};
+  delete $self->_subs->{$pragma_name};
+  $self->_deps->delete_vertex($pragma_name);
   return;
 }
 
-# Get all active substitutions.
 sub _var_names {
-  my ($self) = @_;
-  if (defined $self->{Substitution_data}) {
-    return keys %{$self->{Substitution_data}};
-  }
-  else {
-    return;
-  }
+  my $self = shift;
+  return keys %{ $self->_subs };
 }
 
 # If the current thing has substitutions in it,
@@ -384,7 +371,37 @@ sub _var_names {
 # Else return false.
 sub _queue_var_names {
   my($self, $line) = @_;
-  my $results = $self->_substitute($line, $self->_var_names);
+  # Get the variables in this line. We'll need these and all their
+  # dependencies, but nothing else. This speeds up substitution in 
+  # a major way because we don't try fruitless variations of variables
+  # that are not (and can't be) substituted into the line.
+  #
+  # First, parse the unique substitutions out of the line.
+
+  my %vars_of = map { $_ => 1 }             # a hash item for  every ...
+                    ( grep { defined $_ }     # defined item in ...
+                           (                     # items matching ...
+                             $line =~ / < (\S+?) > # non-blanks in 
+                                                   # outward-pointing
+                                        |          # or
+                                        > (\S+?) < # non-blanks in 
+                                                   # inward-pointing
+                                     /xg         # (every one of them)
+                            )
+                     );
+  my @vars = keys %vars_of;
+
+  # @vars may now include things like variables we've forgotten and 
+  # HTML tags. Discard these guys. If nothing's left, bow out.
+  @vars = grep { $self->_subs->{$_} } @vars;
+  return 0 unless @vars;
+
+  # Anything left at this point is an actual variable. Check for 
+  # dependencies on the remaining variables. Bow out if nothing's left.
+  @vars = $self->_all_dependencies(@vars);
+  return 0 unless @vars;
+   
+  my $results = $self->_substitute($line, @vars );
   if (@{ $results } != 1) {
     # substitutions definitely happened
     $self->queue_lines(@{ $results });
@@ -499,11 +516,12 @@ sub _substitution_value {
     die 'No pragma specified';
   }
   if (@pragma_values) {
-    $self->{Substitution_data}->{$pragma_name} = \@pragma_values;
+    $self->_subs->{$pragma_name} = \@pragma_values;
   }
+  my $value_ref = ($self->_subs->{$pragma_name} or []);
   return 
-    wantarray ? @{$self->{Substitution_data}->{$pragma_name}}
-              : $self->{Substitution_data}->{$pragma_name};
+    wantarray ? @{ $value_ref }
+              : $value_ref;
 }
 
 # Wrapper function for setter/getter that implements the
@@ -530,8 +548,8 @@ sub _substitution_data {
     $self->_substitution_value($pragma_name);
   }
   return 
-    wantarray ? @{$self->{Substitution_data}->{$pragma_name}}
-              : $self->{Substitution_data}->{$pragma_name};
+    wantarray ? @{$self->_subs->{$pragma_name}}
+              : $self->_subs->{$pragma_name};
 }
 
 ########################
@@ -846,64 +864,83 @@ sub stack_test {
 }
 
 ##################################
-# Dependency checking *incomplete*
+# Dependency checking
 
 # It's necessary to make sure that the substitution pragmas
 # don't have looping dependencies; these would cause the 
 # input stack to grow without limit as it tries to resolve
 # all of the substitutions.
 #
-# We use a topological sort of the dependencies to make 
-# sure that the there are no loops in the substitution
-# pragma dependencies. This is a sort that takes as its
-# input a definition of the order that the items are 
-# supposed to occur in, and returns either an ordering
-# of the data, or a list of the items that are mutually
-# dependent.
+# All we have to do is make sure that the graph of variable
+# relations is a directed acyclic graph. Since actually writing
+# all that would be a pain, we use Graph.pm to manage it for us.
 
 sub _check_dependencies {
-  my ($self, $child, @parents) = @_;
-  @parents = grep { /^<.*>$/mx } @parents;
-  if (! @parents) {
+  my ($self, $var, @dependencies) = @_;
+  my $graph = $self->_deps;
+
+  # drop anything that's not a variable definition.
+  @dependencies = grep { /^<.*>$/mx } @dependencies;
+
+  # No variables, no dependencies.
+  if (! @dependencies) {
     return 1, 'no dependencies';
   }
-  $self->_depend($child, @parents);
-  
-  return $self->_tsort();
+
+  # Add the new dependencies.
+  $self->_depend($var, @dependencies);
+ 
+  # Run a topological sort to make sure that the
+  # graph remains a DAG. If not, returns a cycle.
+  # Note that it's possible that there's more than one
+  # cycle, though not liekely, since we're checking
+  # every time we add a new variable. 
+  unless ($graph->is_dag) {
+    return $graph->find_a_cycle;
+  }
 }
 
 sub _depend {
-  my($self, $item, @parents) = @_;
+  my($self, $item, @dependencies) = @_;
+
   if (!defined $item) {
-    return keys %{ $self->{PragmaDepend} };
+    die "You don't want to do that anymore";
   }
 
-  if (!@parents) {
-    return ($self->{PragmaDepend}->{$item} or []);
+  if (!@dependencies) {
+    return ([ $self->_deps->successors($item) ]);
   }
 
-  for my $parent (@parents) {
-    push @{ $self->{PragmaDepend}->{$parent} }, $item;
-  }
+  # Add these dependencies for the item.
+  $self->_deps->add_edge($item, $_) for @dependencies;    ## no critic
   return;
 }
 
 sub _all_dependencies {
   my ($self, @items) = @_;
+
   # We start by accumulating the dependencies of 
-  # the item(s) we were handed.
+  # the item(s) we were handed. First, anything we got goes in.
   my %accumulated;
 
+  # Clean out any undefined stuff;
+  local $_;
+  @items = grep { defined $_ } @items;
   for my $item (@items) {
+    next unless $self->_deps->has_vertex($item);
     $accumulated{$item} = 1;
-    my @deps = @{ $self->_depend($item) };
+  }
+
+  # For all the keys we currently have:
+  for my $item (keys %accumulated) {
+    my @deps =  @{ $self->_depend($item) };
     foreach my $dep (@deps) {
       $accumulated{$dep} = 1;
     }
   }
 
-  # No dependencies; empty list.
-  return () if int keys %accumulated == 0; 
+  # No dependencies; return whatever was in the line (if anything!)
+  return @items if int keys %accumulated == 0; 
 
   # No new dependencies. Stop recursing.
   return @items if int keys %accumulated == int @items;
@@ -911,51 +948,6 @@ sub _all_dependencies {
   # At least one new dependency.
   # Recursively call this routine to resolve any new dependencies.
   return $self->_all_dependencies(keys %accumulated);
-}
-
-sub _tsort {
-  my $self = shift;
-
-  my %pairs; # all pairs ($l, $r)
-  my %npred; # number of predecessors
-  my %succ;  # list of successors
-
-  for my $parent ($self->_depend) {
-    for my $child (@{ $self->_depend($parent) }) {
-      next if defined $pairs{$parent}{$child};
-      $pairs{$parent}{$child}++;
-      $npred{$parent} += 0;
-      ++$npred{$child};
-      push @{$succ{$parent}}, $child;
-    }
-  }
-
-  # create a list of nodes without predecessors
-  my @list = grep { ! $npred{$_} } keys %npred;
-
-  my @order;
-  while (@list) {
-    push @order, ($_ = pop @list);
-    foreach my $child (@{$succ{$_}}) {
-      if (! --$npred{$child}) {
-        unshift @list, $child;
-      }
-    }
-  }
-
-  $self->{DependencyOrder} = \@order;
-
-  my @looped;
-  for (keys %npred) {
-    if ($npred{$_}) {
-     push @looped, $_;
-    }
-  }
-
-  return(
-    @looped ? (0, "@looped")
-            : (1, "@order")
-  );
 }
 
 1; # Magic true value required at end of module

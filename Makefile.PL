@@ -18,7 +18,7 @@ WriteMakefile(
         'Regexp::Common'       => 0,
         'WWW::Mechanize'       => '1.16',
         'WWW::Mechanize::Pluggable' => '0.09',
-        'Text::Balanced'       => '1.95',
+        'Graph'                => '0.65',
         'IO::ScalarArray'      => '2.110',
         'Encode'               => 0,
         'Sub::Installer'       => 0,

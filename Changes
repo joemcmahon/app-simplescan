@@ -1,4 +1,16 @@
 Revision history for App-SimpleScan
+1.17  Wed Aug  9 12:37:35 PDT 2006
+	- Fixed subtle bug in expand_backticked: if the characters 'tr' 
+          (unquoted) appeared in a variable definition, expand_backticked
+          parsed this as beginning a tr/.../. Threw out Text::Balanced and
+	  used a pattern from Friedl to do the job instead. Bonus: speed gain!
+        - Made simple_scan always stack a failing test if it encountered
+	  a bad line.
+	- (Finally!) Complete overhaul of dependencies to use Graph.pm, thereby
+	  making it easy to streamline the substitution calculations for cases
+	  where you have many variables, but are only substituting in one or
+	  two. The new code eliminates checks on the variables you don't care
+	  about, radically speeding up this case.
 
 1.16  Fri Jul 28 11:15:06 PDT 2006
 	- Add input hook support for include-style plugins

@@ -51,20 +51,27 @@ eq_or_diff(\@output, \@expected, "ran as expected");
 
 @output = `bin/simple_scan --gen --warn<examples/ss_garbage3.in`;
 @expected = map {"$_\n"} split /\n/,<<EOF;
-use Test::More tests=>1;
+use Test::More tests=>4;
 use Test::WWW::Simple;
 use strict;
 
 mech->agent_alias('Windows IE 6');
-# 'this line has a 
-# This line has an unmatched quote of some kind and was skipped.
-# Subsequent lines may have a problem if this was because of a newline.
 # line break in it'
 # Possible syntax error in this test spec
 page_unlike "http://perl.org",
-            qr/this line has a  /,
-            qq(Demo the linebreak message [http://perl.org] [/this line has a  / shouldn't match]);
+            qr/'this/,
+            qq(Demo the linebreak message [http://perl.org] [/'this/ shouldn't match]);
+page_unlike "http://perl.org",
+            qr/a/,
+            qq(Demo the linebreak message [http://perl.org] [/a/ shouldn't match]);
+page_unlike "http://perl.org",
+            qr/has/,
+            qq(Demo the linebreak message [http://perl.org] [/has/ shouldn't match]);
+page_unlike "http://perl.org",
+            qr/line/,
+            qq(Demo the linebreak message [http://perl.org] [/line/ shouldn't match]);
 
 EOF
+
 push @expected, "\n";
 eq_or_diff(\@output, \@expected, "output as expected");

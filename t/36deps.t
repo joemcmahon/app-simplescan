@@ -6,10 +6,10 @@ BEGIN {
 }
 
 my $app = new App::SimpleScan;
-$app->_depend(qw(b a));
-$app->_depend(qw(c b));
-$app->_depend(qw(d b));
-$app->_depend(qw(e c));
+$app->_depend(qw(a b));
+$app->_depend(qw(b c));
+$app->_depend(qw(b d));
+$app->_depend(qw(c e));
 
 eq_or_diff([sort $app->_all_dependencies('a')],
            [qw(a b c d e)],

@@ -1,4 +1,13 @@
 Revision history for App-SimpleScan
+1.20  Wed Aug 23 13:58:31 PDT 2006
+	- worked out the funky kinks in nested substitutions by a major 
+	  simplification of the substitution logic. 
+	- dependency logic now *only* worries about keeping loops out of
+	  dependencies; substitution handles all the discovery and resolution
+	  of dependent variables.
+	- removed several methods that are no longer needed (in particular,
+	  _all_dependencies)
+
 1.19  Fri Aug 18 15:34:55 PDT 2006
 	- Support for variable substitutions inside variables themselves;
 	  allows variable names to be constructed dynamically.

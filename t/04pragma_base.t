@@ -1,4 +1,4 @@
-use Test::More tests=>14;
+use Test::More tests=>10;
 use Test::Exception;
 
 BEGIN {
@@ -14,20 +14,16 @@ ok $app->_substitution_data('agent'), "agent there as expected";
 
 $app->_substitution_data('Foo', 'bar');
 is_deeply $app->_substitution_data('Foo'), 'bar', "Set works";
-is_deeply [sort $app->_var_names()], [qw(Foo agent)], "expected substitutions";
 
 $app->_substitution_data('Foo', 'baz');
 is_deeply $app->_substitution_data('Foo'), 'baz', "update works";
-is_deeply [sort $app->_var_names], [sort qw(Foo agent)], "expected substitutions";
 
 $app->_substitution_data('zorch', 'baz','quux');
 is_deeply [$app->_substitution_data('zorch')], [qw(baz quux)], 'lists work';
 is_deeply $app->_substitution_data('Foo'), 'baz', "other value retention works";
-is_deeply [sort $app->_var_names], [sort qw(Foo zorch agent)], "expected substitutions";
 
 $app->_delete_substitution('zorch');
 is $app->_substitution_data('zorch'), undef, "doesn't exist";
 is_deeply $app->_substitution_data('Foo'), 'baz', "other value retention works";
-is_deeply [sort $app->_var_names], [sort qw(Foo agent)], "expected substitutions";
 
 

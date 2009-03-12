@@ -4,7 +4,7 @@ use warnings;
 use strict;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.19';
+our $VERSION = '1.20';
 
 use Carp;
 use Getopt::Long;
@@ -21,10 +21,11 @@ use Module::Pluggable search_path => [qw(App::SimpleScan::Plugin)];
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(tests test_count next_line_callbacks _deps _subs));
 
-my $reference_mech = new WWW::Mechanize::Pluggable;
 $|++;                                                   ##no critic
 
 use App::SimpleScan::TestSpec;
+
+my $reference_mech = new WWW::Mechanize::Pluggable;
 
 my @local_pragma_support =
   (
@@ -52,6 +53,25 @@ my %basic_options =
   );
 
 use base qw(Class::Accessor::Fast);
+
+# Patterns to extract <variables> or >variables< from a string.
+my $out_angled;
+$out_angled = qr/ < ( [^<>] | (??{$out_angled}) )* > /x;
+                  # open angle-bracket then ...
+                      # non-angle chars ...
+                            # or ...
+                               # another angle-bracketed item ...
+                                                 # if there are any ...
+                                                   # and a close angle-bracket
+my $in_angled;
+$in_angled  = qr/ > ( [^<>] | (??{$in_angled}) )* < /x;
+                  # open angle-bracket then ...
+                      # non-angle chars ...
+                            # or ...
+                               # another angle-bracketed item ...
+                                                 # if there are any ...
+                                                   # and a close angle-bracket
+my $in_or_out_bracketed = qr/ ($out_angled) | ($in_angled) /x;
 
 ################################
 # Basic class methods.
@@ -203,7 +223,7 @@ sub transform_test_specs {
     # which is probably *not* what is wanted.
     # Putting this here makes sure that we only
     # substitute into actual test specs.
-    next if $self->_queue_var_names($_);
+    next if $self->_queue_substituted_lines($_);
 
     # No substitutions in this line, so just process it.
     my $item = App::SimpleScan::TestSpec->new($_);
@@ -361,11 +381,6 @@ sub _delete_substitution {
   return;
 }
 
-sub _var_names {
-  my $self = shift;
-  return keys %{ $self->_subs };
-}
-
 # If the current thing has substitutions in it, find the variables involved and
 # return their names.
 sub _find_substitutions {
@@ -382,25 +397,9 @@ sub _find_substitutions {
   #
   # First, parse the unique substitutions out of the line.
 
-  my $out_angled;
-  $out_angled = qr/ < ( [^<>] | (??{$out_angled}) )* > /x;
-                    # open angle-bracket then ...
-                        # non-angle chars ...
-                              # or ...
-                                 # another angle-bracketed item ...
-                                                   # if there are any ...
-                                                     # and a close angle-bracket
-  my $in_angled;
-  $in_angled  = qr/ > ( [^<>] | (??{$in_angled}) )* < /x;
-                    # open angle-bracket then ...
-                        # non-angle chars ...
-                              # or ...
-                                 # another angle-bracketed item ...
-                                                   # if there are any ...
-                                                     # and a close angle-bracket
   # Extract angle-bracketed text.
   my @vars =  grep { defined $_ }     # defined item in ...
-                   ( $string =~ / ($out_angled) | ($in_angled) /xg );
+                   ( $string =~ /$in_or_out_bracketed/xg );
                                             # variable-like items
 
   # The pattern above picks up extra garbage that we don't want, so
@@ -418,32 +417,69 @@ sub _find_substitutions {
   return unless @vars;
 
   # Each variable may (possibly) contain nested variable references.
-  # If we find any, recursively find the appropriate substitutions
-  # for those and return them.
-  my @nested_vars = map { $self->_find_substitutions($_) } @vars;
-  return $self->_find_substitutions(@nested_vars) if @nested_vars;
+  # If we find one of these, do the substitutions to remove the nesting
+  # and add the newly-generated variable names to the list of variables.
+  # We do this with a hash again because it's possible that some of the
+  # variable names may appear more than once.
+  my %expanded_vars;
+  while (@vars) {
+    my $var = shift @vars;
+    my @nested_vars = $self->_find_substitutions($var);
+    if (@nested_vars) {
+      for my $possible_new ($self->_substitute($var, @nested_vars)) {
+        # Don't reprocess variables we've already checked out.
+        push @vars, $possible_new unless exists $expanded_vars{$possible_new};
+      }
+    }
+    else {
+      # Simple variable. Save it. 
+      $expanded_vars{$var}++;
+    }
+  }
 
-  # Anything left at this point is an actual, un-nested variable. Check for 
-  # dependencies on the remaining variables, adding then to the list
-  # of variables.
-  @vars = $self->_all_dependencies(@vars);
+  # After we've bottomed out, we've got the list of all possible variables
+  # we might substitute in. We now need to know what variables the values of
+  # these variables may depend on as well.
+  my %dependencies;
 
-  # Return the list of zero or more variables.
-  return @vars;
+  # Get the unique variables generated by the previous search over the 
+  # variables to be substituted (and their dependencies).
+  @vars = keys %expanded_vars;
+  while (@vars) {
+    my $var = shift @vars;
+
+    # Each value gets run through _find_substitutions, so we can find the 
+    # variables it depends on.
+    my $value = $self->_subs->{$var};
+    next unless $value;
+
+    # Add any variables that need to be substituted into the value to
+    # the set of dependencies.
+    for my $dependency ($self->_find_substitutions($value)) {
+      $dependencies{$dependency}++;
+    }
+  }
+  return (keys %expanded_vars, keys %dependencies);
+}
+
+sub _expand_variables {
+  my ($self, $string) = @_;
+
+  # Figure out what variables should substitute in here.
+  # Do nothing if nothing should substitute.
+  my @vars = $self -> _find_substitutions($string);
+  return [$string] unless @vars;
+
+  # Substitute and return.
+  return $self->_substitute($string, @vars);
 }
 
 # If there are any substitutions, build them, stack them on the input,  
-# and return true. Otherwise, just return fales so this line will be processed.
-sub _queue_var_names {
+# and return true. Otherwise, just return false so the line will be passed on.
+sub _queue_substituted_lines {
   my ($self, $line) = @_;
+  my $results = $self->_expand_variables($line);
 
-  # Figure out what variables should substitute in here.
-  # Drop out if nothing should substitute.
-  my @vars = $self -> _find_substitutions($line);
-  return 0 unless @vars;
-
-  # Do the substitutions, if any.
-  my $results = $self->_substitute($line, @vars );
   if (@{ $results } != 1) {
     # substitutions definitely happened
     $self->queue_lines(@{ $results });
@@ -938,8 +974,10 @@ sub _check_dependencies {
   # cycle, though not liekely, since we're checking
   # every time we add a new variable. 
   unless ($graph->is_dag) {
-    return $graph->find_a_cycle;
+    return (0, $graph->find_a_cycle);
   }
+
+  return 1, "dependencies OK";
 }
 
 sub _depend {
@@ -958,38 +996,97 @@ sub _depend {
   return;
 }
 
-sub _all_dependencies {
+# Dependency checking is somewhat complex because of the declarative nature of
+# substitutions in simple_scan. We don't enforce a strict order of definition - 
+# that is, if <foo> is to be substituted into a line, <foo> need not yet be
+# defined. This allows us to build pseudo-parameterized substitutions; since
+# substitutions are not evaluated at all until they are actually used in a 
+# test spec, it's possible to build a string up such that parts of it are
+# not defined until right before they are used. As an example:
+#
+#  %%url http://<intl>.somewhere.com
+#
+# defines the <url> substitution. Later on in the input file, we can define
+# <intl>, use it in a test spec, and then redefine it and use it again. 
+#
+# Remember that substitutions are built by substituting simple variables into
+# the line, then stacking the line to be reprocessed. Once there are no more
+# substitutions, the line is (finally) interpreted.
+#
+# This means that nested substitutions need to be substituted from the 
+# inside out; another example:
+#
+#  %%server <<intl>_<release>> <special>
+#  %%special my.special.site.com
+#  %%release beta
+#  %%intl it es uk
+#  http://<server>/ ...
+#
+#  The test spec gets expanded like this:
+#    1. Transform <server> to its value and restack. Dependencies: <special>
+#       (nested variable are not dependencies, because they aren't "in" the
+#       line yet. Special is a dependency because it has to be substituted
+#       immediately, and we need to resolve any dependencies it has as well.
+#       Stacked:
+#       http://<<intl>_<release>/ ...
+#       http://<special>/ ...
+#    2a. We pop the first line, which contains <intl> and <release>; 
+#        we dependency check <intl> and <release> since they're being
+#        substituted now.
+#        Stacked:
+#        http://<it_beta>/ ...
+#        http://<es_beta>/ ...
+#        http://<uk_beta>/ ...
+#        http://<special>/ ...
+#    2a1 to 2a4. We pop the <it_beta> line, dependency checking <it_beta>
+#        since it's getting processed immediately. It has no dependencies, so
+#        we substitute and stack.
+#        http://it.beta.site.com/ ...
+#    3. No more substitutions, so we process the line as a test spec now.
+#
+# The key here is that we go in as far as we can in nested substitutions,
+# looking for the innermost non-nested variables. the substitute-stack-reprocess
+# loop takes care of the recursion necessary to get the substitutions done from
+# the inside out.
+#    
+
+# Utility: removes the brackets from a string, if there are any.
+sub _unbracket {
+  my ($self, $string) = @_;
+  my($cleaned) = ($string =~ /^[<>](.*)[<>]$/);
+  return $cleaned or $string;
+}
+
+# Utility: looks at a string and finds the next layer down of nested variables.
+# Returns the (unbracketed) variables.
+sub _find_nested {
   my ($self, @items) = @_;
 
-  # We start by accumulating the dependencies of 
-  # the item(s) we were handed. First, anything we got goes in.
-  my %accumulated;
-
-  # Clean out any undefined stuff;
+  # Clean out any undefined items.
   local $_;
   @items = grep { defined $_ } @items;
-  for my $item (@items) {
-    next unless $self->_deps->has_vertex($item);
-    $accumulated{$item} = 1;
-  }
 
-  # For all the keys we currently have:
-  for my $item (keys %accumulated) {
-    my @deps =  @{ $self->_depend($item) };
-    foreach my $dep (@deps) {
-      $accumulated{$dep} = 1;
+  # Loop over the items that we got. Anything with a nested substitution
+  # is replaced by the inner substitutions. Repeat until we've penetrated
+  # to the innermost substitutions.
+  my @simple_variables;
+  while (@items) {
+    # Get the next item.
+    my $possibly_nested = shift @items;
+    
+    # If this substitution is nested, discard it. Add the next-innermost
+    # substitutions to the queue.
+    if (my @inner = $self->_find_nested($possibly_nested)) {
+      push @items, @inner;
+    }
+    # This substitution is not nested. Keep it if it's an actual substitution.
+    # (This discards HTML tags, or anything else that looked like a variable
+    # but wasn't.)
+    else {
+      push @simple_variables, $self->_unbracket($possibly_nested)
+        if exists $self->_subs->{$possibly_nested};
     }
   }
-
-  # No dependencies; return whatever was in the line (if anything!)
-  return @items if int keys %accumulated == 0; 
-
-  # No new dependencies. Stop recursing.
-  return @items if int keys %accumulated == int @items;
-
-  # At least one new dependency.
-  # Recursively call this routine to resolve any new dependencies.
-  return $self->_all_dependencies(keys %accumulated);
 }
 
 1; # Magic true value required at end of module

@@ -17,6 +17,7 @@ examples/ss_garbage2.in
 examples/ss_garbage3.in
 examples/ss_multisub.in
 examples/ss_nested.in
+examples/ss_nested2.in
 examples/ss_newbracket.in
 examples/ss_nodouble.in
 examples/ss_over_defer.in
@@ -24,6 +25,7 @@ examples/ss_quoted.in
 examples/ss_user_agent.in
 lib/App/SimpleScan.pm
 lib/App/SimpleScan/Cookbook.pm
+lib/App/SimpleScan/Substitution.pm
 lib/App/SimpleScan/TestSpec.pm
 Makefile.PL
 MANIFEST
@@ -63,7 +65,6 @@ t/31snapshot.t
 t/32env.t
 t/33queue.t
 t/35comb.t
-t/36deps.t
 t/37sr_status.t
 t/38ss_status.t
 t/39backslash.t

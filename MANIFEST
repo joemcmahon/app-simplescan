@@ -62,6 +62,8 @@ t/33queue.t
 t/34tsort.t
 t/35comb.t
 t/36deps.t
+t/37sr_status.t
+t/38ss_status.t
 t/App/SimpleScan/Plugin/TestExpand.pm
 t/noplan.tap
 t/planned.tap

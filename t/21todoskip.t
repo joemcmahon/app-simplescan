@@ -14,15 +14,15 @@ not ok 1 - later... [http://perl.org/] [/python/ should match] # TODO Doesn't ma
 #     doesn't match '(?-xism:python)'
 
 EOS
-  qq(echo "http://perl.org/ /python/ SY later..." | simple_scan) => <<EOS,
+  qq(echo "http://perl.org/ /python/ SY later..." | $^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan) => <<EOS,
 1..1
 ok 1 # skip Deliberately skipping test that should match
 EOS
-  qq(echo "http://perl.org/ /python/ SN later..." | simple_scan) => <<EOS,
+  qq(echo "http://perl.org/ /python/ SN later..." | $^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan) => <<EOS,
 1..1
 ok 1 # skip Deliberately skipping test that shouldn't match
 EOS
-  qq(echo "http://perl.org/ /python/ TN later..." | simple_scan) => <<EOS,
+  qq(echo "http://perl.org/ /python/ TN later..." | $^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan) => <<EOS,
 1..1
 ok 1 - later... [http://perl.org/] [/python/ shouldn't match] # TODO Matches now but shouldn't later
 EOS

@@ -1,6 +1,6 @@
 package App::SimpleScan;
 
-our $VERSION = '1.03';
+our $VERSION = '1.05';
 use 5.006;
 
 use warnings;
@@ -35,6 +35,7 @@ my @local_pragma_support =
 # Variables and setup for basic command-line options.
 my($generate, $run, $warn, $override, $defer, $debug);
 my($cache_from_cmdline, $no_agent);
+my($run_status);
 
 # Option-to-variable mappings for Getopt::Long
 my %basic_options = 
@@ -46,6 +47,7 @@ my %basic_options =
    'debug'     => \$debug,
    'autocache' => \$cache_from_cmdline,
    'no-agent'  => \$no_agent,
+   'status'    => \$run_status,
   );
 
 use base qw(Class::Accessor::Fast);
@@ -203,7 +205,11 @@ sub transform_test_specs {
                      
     }
     else {
+      $self->stack_code(qq{diag "Running '$_'";\n}) 
+        if $run_status;
       $item->as_tests;
+      local $_ = $item ->raw;
+      s/\n//;
     }
     # Drop the spec (there isn't one active now).
     $self->set_current_spec();
@@ -709,7 +715,12 @@ sub next_line {
     $next_line = shift @{ $self->{InputQueue} };
   }
   else {
-    $next_line = <>;
+    local $_;
+    $next_line = $_ = <>;
+    if (defined $_) {
+      s/\n//;
+      print STDERR "# Processing '$_'\n" if $run_status;
+    }
   }
   $self->last_line($next_line);
   return $next_line;

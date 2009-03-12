@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 use warnings;
 use strict;
+$|++;
 
 our $VERSION = "1.01";
 
@@ -24,7 +25,10 @@ App::SimpleScan - Mini-language for website testing
   simple_scan [--generate] [--run] 
               [--define key="value value ..." ] [--override] [--defer]
               [--debug]
+              [--warn]
+              [--no-agent]
               [--autocache]
+              [--status]
               {file file file ...}
 
 =head1 USAGE
@@ -174,11 +178,29 @@ Currently, the only extra debugging information is a list of variables
 which were I<not> altered by substitution pragmas when C<--override>
 was specified on the command line.
 
+=item C<--warn>
+
+Causes simple_scan to output code that gives you warnings (via diag())
+in the run file about syntax errors, etc.
+
+=item C<--no-agent>
+
+Tells simple_scan to not set up a default user agent. Some applications
+(e.g., mobile applications) actually go into a debug mode when talking to
+a detectable (known) browser. This turns off simple_scan's assumption that
+you want to look like a browser.
+
 =item C<--autocache>
 
 Turns on caching immediately, whether or not the input file specifies
 C<%%cache> or not. Note that a C<%%nocache> in the input file will 
 turn caching I<off> again. 
+
+=item c<--status>
+
+Turns on status reporting. Sometimes C<simple_scan> takes a while to 
+run (especially if you've defined a lot of variables). This causes it
+to pop out a new status message as each input line is processed.
 
 =back
 

@@ -1,5 +1,12 @@
 Revision history for App-SimpleScan
 
+1.05  Fri Apr 28 17:00:27 PDT 2006
+	- added --status and tests for it
+
+1.04  Thu Apr 27 17:17:04 PDT 2006
+	- fixed tests failing on Solaris (left off specific
+	  path to simple_scan - d'oh!)
+
 1.03  Tue Apr 11 14:17:13 PDT 2006
 	- mysterious 08cache.t test failure solved!
 	- began work on substitution optimization

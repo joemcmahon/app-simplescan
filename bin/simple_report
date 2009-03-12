@@ -6,7 +6,8 @@ use Getopt::Long;
 use Test::Harness;
 use Test::Harness::Iterator;
 
-our $VERSION = "1.01";
+our $VERSION = "1.02";
+$|++;
 
 # This is an example of how to write your own harness using 
 # Test::Harness::Straps.  It duplicates most of the features of 
@@ -18,8 +19,9 @@ our $VERSION = "1.01";
 #
 #  simple_report NAME <tap.output
 
-my($verbose);
-GetOptions("verbose+" => \$verbose);
+my($verbose, $status);
+GetOptions("verbose+" => \$verbose,
+           "status"   => \$status);
 
 my $test_name = shift || "UNNAMED_TEST";
 
@@ -41,6 +43,10 @@ my %totals  = (
                 details  => []
                );
 
+my $current_test_count = 0;
+my $unplanned = 0;
+my $sharp = "# ";
+
 # Store the counts into the Straps object
 # so callbacks can find them.
 $strap->{totals}{STDIN}         = \%totals;
@@ -48,8 +54,23 @@ $strap->{totals}{STDIN}         = \%totals;
 # Read and analyze input.
 while( defined(my $line = $iterator->next) ) {
     $strap->_analyze_line($line, \%totals);
+    if ($status) {
+      if ($totals{seen} > $current_test_count) {
+        $current_test_count++;
+        if ($totals{max} == 0) {
+          $unplanned = 1;
+          print "$sharp.";
+          $sharp = '';
+        }
+        else {
+          printf "$sharp %2.1d%% complete\n", ($totals{seen}*1.0/$totals{max})*100;
+        }
+      }
+    }
     last if $strap->{saw_bailout};
 }
+print "\n" if $unplanned;
+
 
 # Print summary
 print "$test_name: tests=$totals{seen}, ok=$totals{ok}, failed=@{[$totals{seen}-$totals{ok}]}, skipped=$totals{skip}, todo=$totals{todo}";
@@ -97,7 +118,7 @@ __END__
 
 =head1 NAME
 
-micro-harness - Ultra-compact TAP summary
+simple_report - Ultra-compact TAP summary
 
 =head1 SYNOPSIS
 
@@ -151,8 +172,15 @@ unexpectedly-succeeding) tests as well.
 If you want to see all of the diag messages as well, specify C<-v -v> (that's
 I<two> C<--verbose> options). 
 
-If you've installed C<WWW::Mechanize::Plugin::Snapshot> and snapshots were taken, 
-a one-line diag will be printed showing you where the snapshot was stored.
+If you've installed C<WWW::Mechanize::Plugin::Snapshot> and snapshots were 
+taken, a one-line diag will be printed showing you where the snapshot was 
+stored.
+
+If you're running simple_report as part of a pipe from simple_scan, you may
+want to use the C<-s> option. This outputs a status message each time another
+test runs, culminating in the standard reports that simple_report outputs. 
+The status messages all begin with '# ', so they're easy to filter out of
+your final output if you only want the report output.
 
 =head1 INTERFACE
 

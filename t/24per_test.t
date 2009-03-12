@@ -11,18 +11,18 @@ use Test::WWW::Simple;
 use strict;
 
 mech->agent_alias('Windows IE 6');
-page_like "http://asia.yahoo.com/",
-          qr/yahoo/,
-          qq(Yahoo should be there (asia) [http://asia.yahoo.com/] [/yahoo/ should match]);
 page_like "http://au.yahoo.com/",
           qr/yahoo/,
           qq(Yahoo should be there (au) [http://au.yahoo.com/] [/yahoo/ should match]);
-page_like "http://de.yahoo.com/",
-          qr/yahoo/,
-          qq(Yahoo should be there (de) [http://de.yahoo.com/] [/yahoo/ should match]);
 page_like "http://es.yahoo.com/",
           qr/yahoo/,
           qq(Yahoo should be there (es) [http://es.yahoo.com/] [/yahoo/ should match]);
+page_like "http://de.yahoo.com/",
+          qr/yahoo/,
+          qq(Yahoo should be there (de) [http://de.yahoo.com/] [/yahoo/ should match]);
+page_like "http://asia.yahoo.com/",
+          qr/yahoo/,
+          qq(Yahoo should be there (asia) [http://asia.yahoo.com/] [/yahoo/ should match]);
 
 EOF
 push @expected, "\n";
@@ -36,21 +36,21 @@ use strict;
 
 # Adding test expansion comment
 mech->agent_alias('Windows IE 6');
-page_like "http://asia.yahoo.com/",
-          qr/yahoo/,
-          qq(Yahoo should be there (asia) [http://asia.yahoo.com/] [/yahoo/ should match]);
-# per-test comment
 page_like "http://au.yahoo.com/",
           qr/yahoo/,
           qq(Yahoo should be there (au) [http://au.yahoo.com/] [/yahoo/ should match]);
+# per-test comment
+page_like "http://es.yahoo.com/",
+          qr/yahoo/,
+          qq(Yahoo should be there (es) [http://es.yahoo.com/] [/yahoo/ should match]);
 # per-test comment
 page_like "http://de.yahoo.com/",
           qr/yahoo/,
           qq(Yahoo should be there (de) [http://de.yahoo.com/] [/yahoo/ should match]);
 # per-test comment
-page_like "http://es.yahoo.com/",
+page_like "http://asia.yahoo.com/",
           qr/yahoo/,
-          qq(Yahoo should be there (es) [http://es.yahoo.com/] [/yahoo/ should match]);
+          qq(Yahoo should be there (asia) [http://asia.yahoo.com/] [/yahoo/ should match]);
 # per-test comment
 
 EOF

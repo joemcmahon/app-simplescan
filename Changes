@@ -1,8 +1,27 @@
 Revision history for App-SimpleScan
+2.00  Wed Sep 20 14:06:09 PDT 2006
+	- First refactoring: substitution engine extracted
+	  -- Added App::SimpleScan::Substitution and
+	           App::SimpleScan::Substitution::Lines
+          -- Added associated tests
+          -- Variables now substitute in the order you specified, rather
+	     than in alphabetical order
+          -- Dependencies and substitutions are now handled by
+	     completely separate sections of code
+          -- "cross-product" bugs (caused by resubstitution of an
+             already-resolved variable) have been fixed. This was
+             the problem which led to the refactoring effort.
+
+1.23  Thu Aug 31 13:10:02 PDT 2006
+	- fix for "Use of uninitialized value in join or string" error in 
+	  App::SimpleScan::TestSpec -  added explicit check for malformed URL 
+	  schemes. This often happens when one of the '%' signs is left off a 
+	  pragma.
+
 1.22  Wed Aug 30 17:10:33 PDT 2006
-	- fix suble-quote expansion to work as expected
+	- fix double-quote expansion to work as expected
 	  (variables inside double-quotes are now expanded, and *all*
-          of the possible values of the expression are returned.
+          of the possible values of the expression are returned).
 
 1.21  Thu Aug 24 17:07:20 PDT 2006
 	- enable dynamic creation of variable *names*

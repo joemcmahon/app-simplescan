@@ -1,11 +1,12 @@
 use Test::More tests=>48;
-use App::SimpleScan;
+use App::SimpleScan::Substitution;
 
-my $app = new App::SimpleScan;
+my $sub = new App::SimpleScan::Substitution;
 
-$app->_substitution_data('a', '0', '1', '2');
-$app->_substitution_data('b', '0', '1');
-$app->_substitution_data('c', '0', '1', '2', '3');
+$sub->substitution_value('a', '0', '1', '2');
+$sub->substitution_value('b', '0', '1');
+$sub->substitution_value('c', '0', '1', '2', '3');
+$sub->substitution_value(agent=>'Windows IE 6');
 
 my %map = (
   0 => {a=>0, agent=> 'Windows IE 6', b=>0, c=>0},
@@ -62,12 +63,12 @@ my %comb = (
 );
 
 for $i (0..23) {
-  my @result = $app->_comb($i, a=>3, b=>2, c=>4, agent=>1);
+  my @result = $sub->_comb($i, a=>3, b=>2, c=>4, agent=>1);
   is_deeply \@result, $comb{$i}, "index converted properly";
 }
 
 for $i (0..23) {
-  my %result = $app->_comb_index($i, a=>3, b=>2, c=>4, agent=>1);
+  my %result = $sub->_comb_index($i, a=>3, b=>2, c=>4, agent=>1);
   is_deeply \%result, $map{$i}, "index mapped properly";
 }
 

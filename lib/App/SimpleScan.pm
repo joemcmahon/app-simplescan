@@ -4,7 +4,7 @@ use warnings;
 use strict;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.22';
+our $VERSION = '2.00';
 
 use Carp;
 use Getopt::Long;
@@ -14,18 +14,21 @@ use WWW::Mechanize;
 use WWW::Mechanize::Pluggable;
 use Test::WWW::Simple;
 use App::SimpleScan::TestSpec;
+use App::SimpleScan::Substitution;
 use Graph;
 
 use Module::Pluggable search_path => [qw(App::SimpleScan::Plugin)];
 
 use base qw(Class::Accessor::Fast);
-__PACKAGE__->mk_accessors(qw(tests test_count next_line_callbacks _deps _subs));
+__PACKAGE__->mk_accessors(qw(sub_engine tests test_count 
+                             next_line_callbacks _deps));
 
 $|++;                                                   ##no critic
 
 use App::SimpleScan::TestSpec;
 
 my $reference_mech = new WWW::Mechanize::Pluggable;
+my $sub_engine     = new App::SimpleScan::Substitution;
 
 my @local_pragma_support =
   (
@@ -88,7 +91,7 @@ sub new {
   bless $self, $class;
 
   $self->_deps(Graph->new);
-  $self->_subs({});
+  $self->sub_engine($sub_engine);
 
   # initialize fields first; plugins may expect good values.
   $self->next_line_callbacks([]);
@@ -288,7 +291,7 @@ sub finalize_tests {
     push @prepends, qq(mech->agent_alias("Windows IE 6");\n);
   }
  
-  # Add the boilerplate teting stuff. 
+  # Add the boilerplate testing stuff. 
   unshift @prepends, 
     (
       "use Test::More tests=>@{[$self->test_count]};\n",
@@ -351,7 +354,7 @@ sub expand_backticked {
     # Double-quoted: eval it.
     elsif (/^"(.*)"$/mx) {
       my $to_be_evaled = $1;
-      my @substituted = @{ $self->_substitute($to_be_evaled, $self->_find_substitutions($to_be_evaled)) };
+      my @substituted = $self->sub_engine->expand($to_be_evaled);
       push @result, map { eval $_ } @substituted;          ##no critic
     }
     # Single-quoted: remove quotes.
@@ -377,209 +380,26 @@ sub get_current_spec {
   return $self->{CurrentTestSpec};
 }
 
-#############################
-# Substitution-related methods
-
-sub _delete_substitution {
-  my ($self, $pragma_name) = @_;
-  delete $self->_subs->{$pragma_name};
-  $self->_deps->delete_vertex($pragma_name);
-  return;
-}
-
-# If the current thing has substitutions in it, find the variables involved and
-# return their names.
-sub _find_substitutions {
-  my($self, $string) = @_;
-
-  # We absolutely have to localize $_ because we may get called recursively
-  # inside the map() below.
-  local $_;
-
-  # Get the variables in this line. We'll need these and all their
-  # dependencies, but nothing else. This speeds up substitution in 
-  # a major way because we don't try fruitless variations of variables
-  # that are not (and can't be) substituted into the line.
-  #
-  # First, parse the unique substitutions out of the line.
-
-  # Extract angle-bracketed text.
-  my @vars =  grep { defined $_ }     # defined item in ...
-                   ( $string =~ /$in_or_out_bracketed/xg );
-                                            # variable-like items
-
-  # The pattern above picks up extra garbage that we don't want, so
-  # discard it.
-  @vars = grep { ($_) = /^[<>](.*)[<>]$/ } @vars;
-
-  # It's possible that a variable was mentioned multiple times in a line.
-  # Extract only the unique names.
-  my %unique_vars = map {$_ => 1} @vars;
-  @vars = keys %unique_vars;
-
-  # Each variable may (possibly) contain nested variable references.
-  # If we find one of these, do the substitutions to remove the nesting
-  # and add the newly-generated variable names to the list of variables.
-  # We do this with a hash again because it's possible that some of the
-  # variable names may appear more than once.
-  my %expanded_vars;
-  while (@vars) {
-    my $var = shift @vars;
-    my @nested_vars = $self->_find_substitutions($var);
-    if (@nested_vars) {
-      # There were nested vars. Queue then for possible reprocessing.
-      push @vars, @nested_vars;
-    }
-    else {
-      # Simple variable. Save it. 
-      $expanded_vars{$var}++;
-    }
-  }
-
-  # After we've bottomed out, we've got the list of all possible variables
-  # we might substitute in. Remove variables with no substitution values.
-  @vars = grep { $self->_subs->{$_} } keys %expanded_vars;
-  return @vars;
-}
-
-sub _expand_variables {
-  my ($self, $string) = @_;
-
-  # Figure out what variables should substitute in here.
-  # Do nothing if nothing should substitute.
-  my @vars = $self -> _find_substitutions($string);
-  return [$string] unless @vars;
-
-  # Substitute and return.
-  return $self->_substitute($string, @vars);
-}
-
 # If there are any substitutions, build them, stack them on the input,  
 # and return true. Otherwise, just return false so the line will be passed on.
 sub _queue_substituted_lines {
   my ($self, $line) = @_;
-  my $results = $self->_expand_variables($line);
+  my @results = $self->sub_engine->expand($line);
 
-  if (@{ $results } != 1) {
+  if (@results != 1) {
     # substitutions definitely happened
-    $self->queue_lines(@{ $results });
+    $self->queue_lines(@results);
     return 1;
   }
-  elsif ($results->[0] ne $line) {
+  elsif ($results[0] ne $line) {
     # single line is different, so substitution(s) happened
-    $self->queue_lines(@{ $results });
+    $self->queue_lines(@results);
     return 1;
   }
   else {
     # nothing happened, just process it as is
     return 0;
   }
-}
-
-# Actually do variable substitutions.
-sub _substitute {
-  my($self, $line, @var_names) = @_;
-
-  my %alteration_for =();
-
-  # Count the number of items for each substitution,
-  # and the maximum combination index.
-  my %item_count_for;
-  my $max_combination = 1;
-  for my $var_name (sort @var_names) {
-     $max_combination *= 
-      $item_count_for{$var_name} = () = 
-        $self->_substitution_value($var_name);
-  }
-
-  for my $i (0 .. $max_combination-1) {
-    # Convert the combination index into a hash of
-    # data indexed out of the substitution value lists.
-    my %current_value_of = $self->_comb_index($i, %item_count_for);
-
-    # Substitute the new current values into
-    # the line until it stops changing, and then save
-    # this line.
-    my $new_line = $line;
-    my $line_changed = 1;
-    my %change_count_for = ();
-    while ($line_changed) {
-      $line_changed = 0;
-      for my $var_name (@var_names) {
-        my $current_value = $current_value_of{$var_name};
-        my $var_inserted;
-        $var_inserted ||= ($new_line =~ s/>$var_name</$current_value/mxg);
-        $var_inserted ||= ($new_line =~ s/<$var_name>/$current_value/mxg);
-        if ($var_inserted) {
-          $change_count_for{$current_value}++;
-          $line_changed++;
-        }
-      }
-    }
-
-    # The "alteration key" is the values substituted into the line.
-    # We sort the keys to prevent random key access from confusing us.
-    # %change_count_for is keyed by the *values* substituted in, so 
-    # we get a different substitution key for each unique set of values.
-    # this makes sure we get all of the distinct possibilities and 
-    # eliminate duplicates.
-    my $alteration_key = "@{[sort keys %change_count_for]}";
-    $alteration_for{$alteration_key} = $new_line;
-  }
-  return [sort values %alteration_for];
-}
-
-sub _comb_index {
-  my($self, $index, %item_counts) = @_;
-  my @indexes = $self->_comb($index, %item_counts);
-  my $i = 0;
-  my %selection_for;
-  my @ordered_keys = sort keys %item_counts;
-  local $_;                                                ##no critic
-  my %base_map_of = map { $_ => $i++ } @ordered_keys;
-  for my $var (@ordered_keys) {
-    $selection_for{$var} = $self->_substitution_data($var)->[$indexes[$base_map_of{$var}]];
-  }
-  return %selection_for;
-}
-
-sub _comb {
-  my($self, $index, %item_counts) = @_;
-  my @base_order = sort keys %item_counts;
-  my @comb;
-  my $place = 0;
-
-  # All indexes must start at zero.
-  my $number_of_items = scalar keys %item_counts;
-  foreach my $item (keys %item_counts) {
-    push @comb, 0;
-  }
-
-  # convert from base 10 to the derived multi-base number
-  # that maps into the indexes into the possible values.
-  while ($index) {
-    $comb[$place] = $index % $item_counts{$base_order[$place]};
-    $index = int $index/$item_counts{$base_order[$place]};
-    $place++;
-  }
-  return @comb;
-}
-
-# setter/getter for substitution data.
-# - setter needs a name and a list of values.
-# - getter needs a name, returns a list of values.
-sub _substitution_value {
-  my ($self, $pragma_name, @pragma_values) = @_;
-  if (! defined $pragma_name) {
-    die 'No pragma specified';
-  }
-  if (@pragma_values) {
-    $self->_subs->{$pragma_name} = \@pragma_values;
-  }
-  my $value_ref = ($self->_subs->{$pragma_name} or []);
-  return 
-    wantarray ? @{ $value_ref }
-              : $value_ref;
 }
 
 # Wrapper function for setter/getter that implements the
@@ -599,15 +419,20 @@ sub _substitution_data {
       }
     }
     else {
-      $self->_substitution_value($pragma_name, @pragma_values);
+      $self->sub_engine->substitution_value($pragma_name, @pragma_values);
     }
   }
   else {
-    $self->_substitution_value($pragma_name);
+    $self->sub_engine->substitution_value($pragma_name);
   }
   return 
-    wantarray ? @{$self->_subs->{$pragma_name}}
-              : $self->_subs->{$pragma_name};
+    wantarray ? @{$self->sub_engine->dictionary->{$pragma_name}}
+              : $self->sub_engine->dictionary->{$pragma_name};
+}
+
+sub _delete_substitution {
+  my ($self, $substitution) = @_;
+  return $self->sub_engine->delete_substitution($substitution);
 }
 
 ########################
@@ -642,15 +467,15 @@ sub handle_options {
 
   # If anything was predefined, save it in the substitutions.
   for my $def (keys %{$self->{Predefs}}) {
-    $self->_substitution_value($def, 
+    $self->sub_engine->substitution_value($def, 
                             (split /\s+/mx, $self->{Predefs}->{$def}));
   }
 
   if (${$self->no_agent}) {
-    $self->_substitution_value('agent', 'WWW::Mechanize::Pluggable');
+    $self->sub_engine->substitution_value('agent', 'WWW::Mechanize::Pluggable');
   }
   else {
-    $self->_substitution_value('agent', 'Windows IE 6');
+    $self->sub_engine->substitution_value('agent', 'Windows IE 6');
     $self->stack_code("mech->agent_alias('Windows IE 6');\n");
   }
   
@@ -974,99 +799,6 @@ sub _depend {
   # Add these dependencies for the item.
   $self->_deps->add_edge($item, $_) for @dependencies;    ## no critic
   return;
-}
-
-# Dependency checking is somewhat complex because of the declarative nature of
-# substitutions in simple_scan. We don't enforce a strict order of definition - 
-# that is, if <foo> is to be substituted into a line, <foo> need not yet be
-# defined. This allows us to build pseudo-parameterized substitutions; since
-# substitutions are not evaluated at all until they are actually used in a 
-# test spec, it's possible to build a string up such that parts of it are
-# not defined until right before they are used. As an example:
-#
-#  %%url http://<intl>.somewhere.com
-#
-# defines the <url> substitution. Later on in the input file, we can define
-# <intl>, use it in a test spec, and then redefine it and use it again. 
-#
-# Remember that substitutions are built by substituting simple variables into
-# the line, then stacking the line to be reprocessed. Once there are no more
-# substitutions, the line is (finally) interpreted.
-#
-# This means that nested substitutions need to be substituted from the 
-# inside out; another example:
-#
-#  %%server <<intl>_<release>> <special>
-#  %%special my.special.site.com
-#  %%release beta
-#  %%intl it es uk
-#  http://<server>/ ...
-#
-#  The test spec gets expanded like this:
-#    1. Transform <server> to its value and restack. Dependencies: <special>
-#       (nested variable are not dependencies, because they aren't "in" the
-#       line yet. Special is a dependency because it has to be substituted
-#       immediately, and we need to resolve any dependencies it has as well.
-#       Stacked:
-#       http://<<intl>_<release>/ ...
-#       http://<special>/ ...
-#    2a. We pop the first line, which contains <intl> and <release>; 
-#        we dependency check <intl> and <release> since they're being
-#        substituted now.
-#        Stacked:
-#        http://<it_beta>/ ...
-#        http://<es_beta>/ ...
-#        http://<uk_beta>/ ...
-#        http://<special>/ ...
-#    2a1 to 2a4. We pop the <it_beta> line, dependency checking <it_beta>
-#        since it's getting processed immediately. It has no dependencies, so
-#        we substitute and stack.
-#        http://it.beta.site.com/ ...
-#    3. No more substitutions, so we process the line as a test spec now.
-#
-# The key here is that we go in as far as we can in nested substitutions,
-# looking for the innermost non-nested variables. the substitute-stack-reprocess
-# loop takes care of the recursion necessary to get the substitutions done from
-# the inside out.
-#    
-
-# Utility: removes the brackets from a string, if there are any.
-sub _unbracket {
-  my ($self, $string) = @_;
-  my($cleaned) = ($string =~ /^[<>](.*)[<>]$/);
-  return $cleaned or $string;
-}
-
-# Utility: looks at a string and finds the next layer down of nested variables.
-# Returns the (unbracketed) variables.
-sub _find_nested {
-  my ($self, @items) = @_;
-
-  # Clean out any undefined items.
-  local $_;
-  @items = grep { defined $_ } @items;
-
-  # Loop over the items that we got. Anything with a nested substitution
-  # is replaced by the inner substitutions. Repeat until we've penetrated
-  # to the innermost substitutions.
-  my @simple_variables;
-  while (@items) {
-    # Get the next item.
-    my $possibly_nested = shift @items;
-    
-    # If this substitution is nested, discard it. Add the next-innermost
-    # substitutions to the queue.
-    if (my @inner = $self->_find_nested($possibly_nested)) {
-      push @items, @inner;
-    }
-    # This substitution is not nested. Keep it if it's an actual substitution.
-    # (This discards HTML tags, or anything else that looked like a variable
-    # but wasn't.)
-    else {
-      push @simple_variables, $self->_unbracket($possibly_nested)
-        if exists $self->_subs->{$possibly_nested};
-    }
-  }
 }
 
 1; # Magic true value required at end of module

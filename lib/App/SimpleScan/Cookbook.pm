@@ -61,38 +61,14 @@ In some cases (e.g., Yahoo!'s fr.search search results), there will actually be
 non-Latin1 characters that are not HTML encoded. This is probably not good 
 practice, but it still exists here and there. To deal with pages like this,
 copy and paste the exact text from a "view source" into the regex you want 
-to use. C<simple_scan> will try to spot all of the non-ASCII characters and
-add special tests for them.
+to use.
 
-=over 4
-
-Note to advanced regex wielders: using capturing parentheses along with
-non-Latin characters will cause test failures if the capturing parens
-appear in the pattern before the non-ASCII character(s). This is because 
-the pattern transformation needed to accurately match the non-ASCII
-characters requires that we replaced them with capturing parentheses
-to, well, capture the non-ASCII characters and test them directly with
-C<eq>. If you add your own capturing parentheses before the non-ASCII
-characters, you throw the capture off, and the comparison will fail.
-
-So: either break the test up into multiple parts, with the parens you
-add to the pattern in one part and the non-ASCII characters in another,
-or use non-capturing parentheses for grouping:
-
-  (?:foo|bar|baz)
-
-This allows you to group alternatives without capturing anything, thus
-keeping C<simple_scan>'s head on straight when it comes to non-ASCII characters.
-
-=back
-
-The best solution? Find the developer concerned and have a chat about
-encoding entities. 
+Newer versions of simple_scan handle data smoothly without any special
+action on your part, even if the encoding's off a bit.
 
 =head1 PLUGINS
 
-Plugins are Perl modules that extend C<simple_scan>'s abilities without modification
-of the core code.
+Plugins are Perl modules that extend C<simple_scan>'s abilities without modification of the core code.
 
 =head2 Installing a new pragma
 
@@ -154,3 +130,11 @@ current C<App::SimpleScan::TestSpec> object.
     $self->app->_stack_test(qw(fail "forced failure accessing bad.com";\n))
      if $self->uri =~ /bad.com/;
   }
+
+=head2 Altering code/inserting code for every test stacked
+
+Create a C<filter> subroutine. This will get called with an array of strings
+corresponding to the code that's about to be stacked; you can do whatever 
+additions or alterations you like. Just return your altered code as an array
+of strings; if you've added any tests to it, use the test_count() method in the
+app() object to up the test count appropriately.

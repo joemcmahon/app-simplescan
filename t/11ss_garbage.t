@@ -107,14 +107,14 @@ page_unlike "http://perl.org",
             qr/'this/,
             qq(Demo the linebreak message [http://perl.org] [/'this/ shouldn't match]);
 page_unlike "http://perl.org",
-            qr/a/,
-            qq(Demo the linebreak message [http://perl.org] [/a/ shouldn't match]);
+            qr/line/,
+            qq(Demo the linebreak message [http://perl.org] [/line/ shouldn't match]);
 page_unlike "http://perl.org",
             qr/has/,
             qq(Demo the linebreak message [http://perl.org] [/has/ shouldn't match]);
 page_unlike "http://perl.org",
-            qr/line/,
-            qq(Demo the linebreak message [http://perl.org] [/line/ shouldn't match]);
+            qr/a/,
+            qq(Demo the linebreak message [http://perl.org] [/a/ shouldn't match]);
 
 EOF
 

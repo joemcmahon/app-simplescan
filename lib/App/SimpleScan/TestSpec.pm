@@ -4,7 +4,7 @@ use warnings;
 use Regexp::Common;
 
 use base qw(Class::Accessor::Fast);
-our $VERSION = 0.23;
+our $VERSION = 0.24;
 
 __PACKAGE__->mk_accessors(qw(raw uri regex delim kind comment metaquote syntax_error flags test_count));
 
@@ -112,7 +112,18 @@ sub parse {
   # Regexp::Common. Otherwise Regexp::Common::URI::http
   #  assumes 'HTTP', meaning that any other scheme won't match,
   #  causing this code to ignore (for instance) https: links.
+  #
+  # We also check for messed-up schemes here: a common error is
+  # to have left off on % on a pragma, causing the line to be 
+  # passed into this code.
   my ($scheme) = $URI =~ /^(\w+)/mx;
+  if (!defined $scheme) {
+    $app->stack_test(<<EOS);
+fail "malformed pragma or URL scheme: '$URI'";
+EOS
+    return 0;
+  }
+  # Not the canonical single-precent error. See if it's a good scheme.
   return 0 if !($URI =~ /$RE{URI}{HTTP}{-scheme => $scheme }/mx);
 
   # Remove comment and kind.

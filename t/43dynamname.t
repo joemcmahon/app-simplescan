@@ -11,15 +11,15 @@ use Test::WWW::Simple;
 use strict;
 
 mech->agent_alias('Windows IE 6');
-page_like "http://au.staging.search.yahoo.com",
-          qr/Yahoo!/,
-          qq(brand on au.staging.search.yahoo.com [http://au.staging.search.yahoo.com] [/Yahoo!/ should match]);
 page_like "http://ca.staging.search.yahoo.com",
           qr/Yahoo!/,
           qq(brand on ca.staging.search.yahoo.com [http://ca.staging.search.yahoo.com] [/Yahoo!/ should match]);
 page_like "http://uk.staging.search.yahoo.com",
           qr/Yahoo!/,
           qq(brand on uk.staging.search.yahoo.com [http://uk.staging.search.yahoo.com] [/Yahoo!/ should match]);
+page_like "http://au.staging.search.yahoo.com",
+          qr/Yahoo!/,
+          qq(brand on au.staging.search.yahoo.com [http://au.staging.search.yahoo.com] [/Yahoo!/ should match]);
 EOF
 push @expected, "\n";
 eq_or_diff(\@output, \@expected, "working output as expected");

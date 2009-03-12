@@ -273,6 +273,8 @@ http://bar.yoursite.com?zz=thud  /Search found/ Y check thud search
 http://baz.yoursite.com?zz=thud  /Search found/ Y check thud search
 
 This makes it very easy to generate many tests from very few input lines.
+simple_scan's substitution engine tracks the values of the variables and
+ensures that, for any given line, the substitution values stay consistent.
 
 =head2 Nested substitutions
 

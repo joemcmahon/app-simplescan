@@ -3,7 +3,9 @@ bin/simple_report
 bin/simple_scan
 bin/simple_scan.yahoo
 Changes
+examples/cross_product.in
 examples/expression.in
+examples/renegade-percent.in
 examples/ss.in
 examples/ss_backtick1.in
 examples/ss_backtick_env.in
@@ -28,6 +30,7 @@ examples/ss_user_agent.in
 lib/App/SimpleScan.pm
 lib/App/SimpleScan/Cookbook.pm
 lib/App/SimpleScan/Substitution.pm
+lib/App/SimpleScan/Substitution/Line.pm
 lib/App/SimpleScan/TestSpec.pm
 Makefile.PL
 MANIFEST
@@ -75,6 +78,11 @@ t/41extract.t
 t/42nested_sub.t
 t/43dynamname.t
 t/44expression.t
+t/45renegade_percent.t
+t/46xproduct.t
+t/47line.t
+t/48subs_base.t
+t/49antique.t
 t/App/SimpleScan/Plugin/TestExpand.pm
 t/App/SimpleScan/Plugin/TestNextLine.pm
 t/critic.t

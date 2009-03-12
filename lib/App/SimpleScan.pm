@@ -1,6 +1,6 @@
 package App::SimpleScan;
 
-our $VERSION = '0.21';
+our $VERSION = '0.22';
 use 5.006;
 
 use warnings;
@@ -8,16 +8,20 @@ use strict;
 use Carp;
 
 use Getopt::Long;
+
 use Regexp::Common;
 use Scalar::Util qw(blessed);
+
 use WWW::Mechanize;
 use WWW::Mechanize::Pluggable;
+
 use Test::WWW::Simple;
+
 use App::SimpleScan::TestSpec;
 
 my $reference_mech = new WWW::Mechanize::Pluggable;
 
-use Module::Pluggable earch_path => [qw(App::SimpleScan::Plugin)];
+use Module::Pluggable search_path => [qw(App::SimpleScan::Plugin)];
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(tests test_count));
@@ -31,7 +35,6 @@ my @local_pragma_support =
     ['cache'   => \&_do_cache],
   );
 
-use base qw(Class::Accessor::Fast);
 
 sub new {
   my ($class) = @_;
@@ -50,6 +53,10 @@ sub new {
   binmode(STDIN);
 
   $self->handle_options;
+
+  # Done here because we don't know what all command-line
+  # options are acceptable until the plugins are loaded.
+  $self->_load_config;
 
   $self->_do_substitution("agent", "Windows IE 6");
 
@@ -225,6 +232,9 @@ sub handle_options {
                             (split /\s+/, $self->{Predefs}->{$def}));
   }
   $self->app_defaults;
+}
+
+sub _load_config {
 }
 
 sub app_defaults {

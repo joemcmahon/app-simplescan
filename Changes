@@ -1,6 +1,9 @@
 Revision history for App-SimpleScan
 
-0.21  Mon Nov 21 17:14:07
+0.22  Mon Nov 28 11:01:37 2005
+	- Missing prereqs in Makefile.PL corrected
+
+0.21  Mon Nov 21 17:14:07 2005
 	- Move test count initialization to prevent an 
 	  uninitialized variable warning if a test is stacked by
 	  a plugin during the options processing phase. (Is that

@@ -1,6 +1,6 @@
 package App::SimpleScan;
 
-our $VERSION = '0.27';
+our $VERSION = '0.28';
 use 5.006;
 
 use warnings;
@@ -290,6 +290,7 @@ sub handle_options {
   }
   else {
     $self->_do_substitution("agent", "Windows IE 6");
+    $self->stack_code("mech->agent_alias('Windows IE 6');\n");
   }
   
   $self->app_defaults;
@@ -429,15 +430,11 @@ sub stack_code {
   $self->tests([@old_code, @code]);
 }
 
-*__PACKAGE__::_stack_code = \&stack_code;
-
 sub stack_test {
   my($self, @code) = @_;
   $self->stack_code(@code);
   $self->test_count($self->test_count()+1);
 }
-
-*__PACKAGE__::_stack_test = \&stack_test;
 
 sub finalize_tests {
   my ($self) = @_;

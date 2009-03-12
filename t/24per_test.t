@@ -9,6 +9,7 @@ use Test::WWW::Simple;
 use strict;
 
 my \@accent;
+mech->agent_alias('Windows IE 6');
 page_like "http://au.yahoo.com/",
           qr/yahoo/,
           qq(Yahoo should be there (au) [http://au.yahoo.com/] [/yahoo/ should match]);
@@ -34,6 +35,7 @@ use strict;
 
 my \@accent;
 # Adding test expansion comment
+mech->agent_alias('Windows IE 6');
 page_like "http://au.yahoo.com/",
           qr/yahoo/,
           qq(Yahoo should be there (au) [http://au.yahoo.com/] [/yahoo/ should match]);

@@ -1,5 +1,8 @@
 Revision history for App-SimpleScan
 
+0.28  Mon Feb  6 12:18:21 PST 2006
+	- fixed missing default agent_alias
+
 0.27  Thu Jan 26 12:49:14 PST 2006
 	- added simple_report to this distribution
 

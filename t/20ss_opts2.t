@@ -7,6 +7,7 @@ use Test::WWW::Simple;
 use strict;
 
 my \@accent;
+mech->agent_alias('Windows IE 6');
 page_like "http://sample.org/bar",
           qr/quux/,
           qq(substitution test [http://sample.org/bar] [/quux/ should match]);
@@ -19,6 +20,7 @@ use Test::WWW::Simple;
 use strict;
 
 my \@accent;
+mech->agent_alias('Windows IE 6');
 page_like "http://sample.org/bar",
           qr/quux/,
           qq(substitution test [http://sample.org/bar] [/quux/ should match]);
@@ -30,6 +32,7 @@ use Test::WWW::Simple;
 use strict;
 
 my \@accent;
+mech->agent_alias('Windows IE 6');
 page_like "http://sample.org/bar",
           qr/quux/,
           qq(substitution test [http://sample.org/bar] [/quux/ should match]);
@@ -41,6 +44,7 @@ use Test::WWW::Simple;
 use strict;
 
 my \@accent;
+mech->agent_alias('Windows IE 6');
 page_like "http://sample.org/boing",
           qr/quux/,
           qq(substitution test [http://sample.org/boing] [/quux/ should match]);
@@ -52,6 +56,7 @@ use Test::WWW::Simple;
 use strict;
 
 my \@accent;
+mech->agent_alias('Windows IE 6');
 page_like "http://sample.org/boing",
           qr/splat/,
           qq(substitution test [http://sample.org/boing] [/splat/ should match]);
@@ -63,6 +68,7 @@ use Test::WWW::Simple;
 use strict;
 
 my \@accent;
+mech->agent_alias('Windows IE 6');
 diag "Substitution foo not altered to 'bar'";
 diag "Substitution baz not altered to 'quux'";
 page_like "http://sample.org/boing",

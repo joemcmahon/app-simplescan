@@ -1,5 +1,17 @@
 Revision history for App-SimpleScan
 
+1.08  Thu Jun  8 16:35:15 PDT 2006
+	- Fix Makefile.PL so simple_report gets installed.
+
+1.07  Wed May 31 16:53:06 PDT 2006
+	- Changed simple_report to send the status messages (x% done)
+	  to STDERR
+
+1.06  Tue May  2 15:31:41 PDT 2006
+ 	- Changed status reporting leader chars to make them easier to spot
+	  (and strip out)
+	- removed "Running" status - that's what 'ok'/'not ok' is for
+
 1.05  Fri Apr 28 17:00:27 PDT 2006
 	- added --status and tests for it
 

@@ -1,7 +1,7 @@
 package App::SimpleScan;
 
-our $VERSION = '1.05';
-use 5.006;
+our $VERSION = '1.08';
+$|++;
 
 use warnings;
 use strict;
@@ -205,8 +205,6 @@ sub transform_test_specs {
                      
     }
     else {
-      $self->stack_code(qq{diag "Running '$_'";\n}) 
-        if $run_status;
       $item->as_tests;
       local $_ = $item ->raw;
       s/\n//;
@@ -719,7 +717,7 @@ sub next_line {
     $next_line = $_ = <>;
     if (defined $_) {
       s/\n//;
-      print STDERR "# Processing '$_'\n" if $run_status;
+      print STDERR "# |Processing '$_' (line $.)\n" if $run_status;
     }
   }
   $self->last_line($next_line);

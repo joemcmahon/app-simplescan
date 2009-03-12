@@ -1,11 +1,12 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         App-SimpleScan
-version:      1.05
+version:      1.08
 version_from: lib/App/SimpleScan.pm
 installdirs:  site
 requires:
     Getopt::Long:                  0
+    IO::ScalarArray:               2.110
     Regexp::Common:                0
     Scalar::Util:                  0
     Test::Differences:             0
@@ -16,4 +17,4 @@ requires:
     WWW::Mechanize::Pluggable:     0.09
 
 distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.28
+generated_by: ExtUtils::MakeMaker version 6.30

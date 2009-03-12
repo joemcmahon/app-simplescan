@@ -19,10 +19,11 @@ WriteMakefile(
         'WWW::Mechanize'       => '1.16',
         'WWW::Mechanize::Pluggable' => '0.09',
         'Text::Balanced'       => '1.95',
+        'IO::ScalarArray'      => '2.110',
 
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'App-SimpleScan-*' },
-    EXE_FILES           => [ 'bin/simple_scan' ],
+    EXE_FILES           => [ 'bin/simple_scan', 'bin/simple_report' ],
     
 );

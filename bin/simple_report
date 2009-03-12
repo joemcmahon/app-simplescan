@@ -63,7 +63,7 @@ while( defined(my $line = $iterator->next) ) {
           $sharp = '';
         }
         else {
-          printf "$sharp %2.1d%% complete\n", ($totals{seen}*1.0/$totals{max})*100;
+          printf STDERR "$sharp %2.1d%% complete\n", ($totals{seen}*1.0/$totals{max})*100;
         }
       }
     }

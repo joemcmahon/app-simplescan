@@ -1,10 +1,15 @@
 Revision history for App-SimpleScan
 
+1.12  Wed Jul  5 12:40:18 PDT 2006
+        - fixed pattern interpolation into the comment section of
+	  the generated code so Perl wouldn't complain about bad
+	  character escapes in the string.
+
 1.11  Fri Jun 23 17:41:22 PDT 2006
 	- expand_backticked was changed to a method to allow it
 	  to more easily emit warnings for mismatched quotes.
 	- mismatched quotes are now explicitly diagnosed. Formerly,
-	  there'd be a !!THISISGARBAGE!! in the output. Bad form.
+	  there'd be a !!THISISGARBAGE!! in the output. Not right.
 
 1.10  Fri Jun 23 12:53:33 PDT 2006
 	- Unicode works!

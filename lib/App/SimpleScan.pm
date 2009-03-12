@@ -1,6 +1,6 @@
 package App::SimpleScan;
 
-our $VERSION = '1.11';
+our $VERSION = '1.12';
 $|++;
 
 use warnings;

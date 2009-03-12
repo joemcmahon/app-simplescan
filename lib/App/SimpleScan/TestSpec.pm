@@ -3,7 +3,7 @@ use base qw(Class::Accessor::Fast);
 use Regexp::Common;
 use strict;
 
-our $VERSION = "0.20";
+our $VERSION = "0.21";
 
 __PACKAGE__->mk_accessors(qw(raw uri regex delim kind comment metaquote syntax_error flags test_count));
 
@@ -14,19 +14,19 @@ my %test_type =
     'Y' => <<EOS,
 page_like "<uri>",
           qr<delim><regex><delim><flags>,
-          qq(<comment> [<uri>] [<delim><regex><delim><flags> should match]);
+          qq(<comment> [<uri>] [<qmregex> should match]);
 EOS
     'N' => <<EOS,
 page_unlike "<uri>",
             qr<delim><regex><delim><flags>,
-            qq(<comment> [<uri>] [<delim><regex><delim><flags> shouldn't match]);
+            qq(<comment> [<uri>] [<qmregex> shouldn't match]);
 EOS
     'TY' => <<EOS,
 TODO: {
   local \$Test::WWW::Simple::TODO = "Doesn't match now but should later";
   page_like "<uri>",
             qr<delim><regex><delim><flags>,
-            qq(<comment> [<uri>] [<delim><regex><delim><flags> should match]);
+            qq(<comment> [<uri>] [<qmregex> should match]);
 }
 EOS
     'TN' => <<EOS,
@@ -34,7 +34,7 @@ TODO: {
   local \$Test::WWW::Simple::TODO = "Matches now but shouldn't later";
   page_unlike "<uri>",
               qr<delim><regex><delim><flags>,
-              qq(<comment> [<uri>] [<delim><regex><delim><flags> shouldn't match]);
+              qq(<comment> [<uri>] [<qmregex> shouldn't match]);
 }
 EOS
     'SY' => <<EOS,
@@ -42,7 +42,7 @@ SKIP: {
   skip 'Deliberately skipping test that should match', 1; 
   page_like "<uri>",
             qr<delim><regex><delim><flags>,
-            qq(<comment> [<uri>] [<delim><regex><delim><flags> should match]);
+            qq(<comment> [<uri>] [<qmregex> should match]);
 }
 EOS
     'SN' => <<EOS,
@@ -50,7 +50,7 @@ SKIP: {
   skip "Deliberately skipping test that shouldn't match", 1; 
   page_unlike "<uri>",
               qr<delim><regex><delim><flags>,
-              qq(<comment> [<uri>] [<delim><regex><delim><flags> shouldn't match]);
+              qq(<comment> [<uri>] [<qmregex> shouldn't match]);
 }
 EOS
   );
@@ -125,12 +125,14 @@ sub parse {
     $self->flags($flags);
   }
   elsif (($clean, $flags) = ($regex =~ m|^/(.*)/([ics]*)$|)) {
+    # slash-delimited, with flags.
     $self->delim("/");
     $self->regex($clean);
     $self->metaquote(1);
     $self->flags($flags);
   }
   else {
+    # random string. We'll metaquote it and put slashes around it.
     $self->delim("/");
     $self->regex($regex);
     $self->metaquote(1);
@@ -143,7 +145,6 @@ sub parse {
 
 sub _render_regex {
   my ($self) = shift;
-  my $uri   = $self->uri;
   my $regex = $self->regex;
   my $delim = $self->delim;
   my $flags = $self->flags;
@@ -163,6 +164,10 @@ sub _render_regex {
   }
   if ($flags) {
     $regex .= $flags;
+  }
+  if ($regex =~ /\\/) {
+    # Have to escape backslashes.
+    $regex =~ s/\\/\\\\/g;
   }
 
   return $regex;
@@ -191,6 +196,8 @@ sub as_tests {
        }
        $tests[$current] =~ s/<flags>/$flags/g;
        $tests[$current] =~ s/<comment>/$comment/;
+       my $qregex = $self->_render_regex();
+       $tests[$current] =~ s/<qmregex>/$qregex/e;
     }
   }
 

@@ -9,6 +9,7 @@ examples/ss_backtick_env.in
 examples/ss_blank.in
 examples/ss_comment.in
 examples/ss_country.in
+examples/ss_escaped.in
 examples/ss_extpattern.in
 examples/ss_fail.in
 examples/ss_garbage1.in
@@ -65,6 +66,7 @@ t/35comb.t
 t/36deps.t
 t/37sr_status.t
 t/38ss_status.t
+t/39backslash.t
 t/App/SimpleScan/Plugin/TestExpand.pm
 t/noplan.tap
 t/planned.tap

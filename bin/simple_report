@@ -75,6 +75,10 @@ print "\n" if $unplanned;
 # Print summary
 print "$test_name: tests=$totals{seen}, ok=$totals{ok}, failed=@{[$totals{seen}-$totals{ok}]}, skipped=$totals{skip}, todo=$totals{todo}";
 print (($totals{bonus} ? " ($totals{bonus} UNEXPECTEDLY SUCCEEDED)" : ""), "\n");
+if ($status) {
+   print STDERR "$sharp $test_name: tests=$totals{seen}, ok=$totals{ok}, failed=@{[$totals{seen}-$totals{ok}]}, skipped=$totals{skip}, todo=$totals{todo}";
+   print STDERR (($totals{bonus} ? " ($totals{bonus} UNEXPECTEDLY SUCCEEDED)" : ""),"\n");
+}
 
 # Print details if requested
 if ($verbose) {

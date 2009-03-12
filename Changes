@@ -1,5 +1,8 @@
 Revision history for App-SimpleScan
 
+1.09  Mon Jun 19 12:07:25 PDT 2006
+	- Add test run status reporting to simple_report -status
+
 1.08  Thu Jun  8 16:35:15 PDT 2006
 	- Fix Makefile.PL so simple_report gets installed.
 

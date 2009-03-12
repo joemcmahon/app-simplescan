@@ -67,7 +67,10 @@ t/36deps.t
 t/37sr_status.t
 t/38ss_status.t
 t/39backslash.t
+t/40inputq.t
 t/App/SimpleScan/Plugin/TestExpand.pm
+t/App/SimpleScan/Plugin/TestNextLine.pm
+t/critic.t
 t/noplan.tap
 t/planned.tap
 t/pod-coverage.t

@@ -4,7 +4,7 @@ use warnings;
 use strict;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.15';
+our $VERSION = '1.16';
 
 use Carp;
 use Getopt::Long;
@@ -19,7 +19,7 @@ use Text::Balanced qw(extract_quotelike extract_multiple);
 use Module::Pluggable search_path => [qw(App::SimpleScan::Plugin)];
 
 use base qw(Class::Accessor::Fast);
-__PACKAGE__->mk_accessors(qw(tests test_count));
+__PACKAGE__->mk_accessors(qw(tests test_count next_line_callbacks));
 
 my $reference_mech = new WWW::Mechanize::Pluggable;
 $|++;                                                   ##no critic
@@ -67,17 +67,22 @@ sub new {
   my $self = {};
   $self->{Substitution_data}= {};
   bless $self, $class;
-  $self->_load_plugins();
 
-  $self->install_pragma_plugins;
-
-  App::SimpleScan::TestSpec->app($self);
-
+  # initialize fields first; plugins may expect good values.
+  $self->next_line_callbacks([]);
   $self->tests([]);
   $self->test_count(0);
   $self->{InputQueue} = [];
   $self->{PragmaDepend} = {};
 
+  # Load and install the plugins.
+  $self->_load_plugins();
+  $self->install_pragma_plugins;
+
+  # TestSpec needs to be able to find the App object.
+  App::SimpleScan::TestSpec->app($self);
+
+  # Read the command line and process the options.
   $self->handle_options;
 
   return $self;
@@ -677,7 +682,12 @@ sub _load_plugins {
     if ($plugin->can('filters')) {
       push @{$self->{Filters}}, $plugin->filters();
     }
+    # Initialize plugin data if possible. 
+    if ($plugin->can('init')) {
+      $plugin->init($self);
+    }
   }
+
   return;
 }
 
@@ -701,9 +711,6 @@ sub install_pragma_plugins {
     elsif ($plugin->can('pragmas')) {
       foreach my $pragma_spec ($plugin->pragmas) {
         $self->pragma(@{ $pragma_spec });
-        if ($plugin->can('init')) {
-          $plugin->init($self);
-        }
       }
     }
   }
@@ -762,20 +769,34 @@ sub _do_nocache {
 sub next_line {
   my ($self) = shift;
   my $next_line;
+
+  # Call and plugin-installed input callbacks.
+  # These can do whatever they like to the line stack, the
+  # object, etc.
+  foreach my $callback (@ {$self->next_line_callbacks() }) {
+    $callback->($self);
+  }
+
+  # If we have lines on the input queue, read from there.
   if (defined $self->{InputQueue}->[0] ) {
     $next_line = shift @{ $self->{InputQueue} };
   }
+
+  # Else we read lines from the standard input.
   else {
-    local $_;                                              ##no critic
-    $next_line = $_ = <>;
-    if (defined $_) {
-      s/\n//mx;
+    $next_line = <>;
+    if (defined $next_line) {
+      $next_line =~ s/\n//mx;
       if ($run_status) {
-        print STDERR "# |Processing '$_' (line $.)\n";
+        print STDERR "# |Processing '$next_line' (line $.)\n";
       }
     }
   }
+
+  # record the text of the last line read for plugins to access
+  # if they need it.
   $self->last_line($next_line);
+
   return $next_line;
 }
 

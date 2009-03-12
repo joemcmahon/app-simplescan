@@ -1,4 +1,4 @@
-package App::SimpleScan::Plugin::TestExpand;
+package App::SimpleScan::Plugin::TestNextLine;
 
 our $VERSION = '0.01';
 
@@ -7,57 +7,39 @@ use strict;
 use Carp;
 use File::Path;
 
-my($test_expand);
+my($test_nextline);
 
 sub import {
   no strict 'refs';
-  *{caller() . '::test_expand'}  = \&test_expand;
-}
-
-sub filters {
-  return \&filter;
+  *{caller() . '::test_nextline'}  = \&test_nextline;
 }
 
 sub init {
   my ($class, $app) = @_;
   no strict 'refs';
-  *{caller() . '::expander'} = \&test_expand;
-  $app->{Expander} = "ping!";
+  my $callbacks_ref = $app->next_line_callbacks();
+  push @{ $callbacks_ref }, \&demo_callback;
+  $app->next_line_callbacks($callbacks_ref);
+  $app->{demo_called} = 0;
 }
 
-sub test_expand {
-  my($self, $value) = @_;
-  $test_expand = $value if defined $value;
-  $test_expand;
+sub test_nextline {
+  my ($self, $value) = @_;
+  $test_nextline = $value if defined $value;
+  $test_nextline;
 }
 
 sub options {
-  return ('test_expand' => \$test_expand,
-         );
+  return ('test_nextline' => \$test_nextline);
 }
 
-sub validate_options {
-  my($class, $app) = @_;
-  if (defined ($app->test_expand)) {
-    $app->pragma('test_expand')->($app);
-  } 
-}
+sub demo_callback {
+  my($app) = @_;
+  return unless $app->test_nextline();
 
-sub pragmas {
-  return (['test_expand' => \&test_expand_pragma],
-         );
-}
-
-sub test_expand_pragma {
-  my ($self, $args) = @_;
-  $self->stack_code(qq(# Adding test expansion comment\n));
-}
-
-sub filter {
-  my($app, @code) = @_;
-  return @code unless $app->test_expand;
-  push @code, qq(# per-test comment\n);
-  return @code;
+  my $n = $app->{demo_called} += 1;
+  my $s = ($n == 1) ? '' : 's';
+  $app->stack_code( qq(# next line plugin called $n time$s\n) );
 }
 
 1; # Magic true value required at end of module
@@ -65,12 +47,7 @@ __END__
 
 =head1 NAME
 
-App::SimpleScan::Plugin::TestExpand - Dummy plugin to test per-test expansion
-
-=head1 VERSION
-
-This document describes App::SimpleScan::Plugin::TestExpand version 0.01
-
+App::SimpleScan::Plugin::TestNextLine - Dummy plugin to test next_line callbacks
 
 =head1 SYNOPSIS
 
@@ -81,46 +58,23 @@ This document describes App::SimpleScan::Plugin::TestExpand version 0.01
   
 =head1 DESCRIPTION
 
-Supports the C<%%test_expand> pragma plus the C<--test_expand> option.
+Adds a simple next_line() callback that just increments an instance variable.
 
 =head1 INTERFACE 
 
-=head2 pragmas
+=head2 init
 
-Installs the pragmas into C<App::SimpleScan>.
+Installs the callback.
 
-=head2 options
+=head2 demo_callback
 
-Installs the command line options into C<App::SimpleScan>.
-
-=head2 test_expand
-
-Accessor allowing pragmas and command line options to share the
-variable containing the current value for this combined option.
-
-=head2 test_expand_pragma
-
-Actually implements the C<%%test_expand> pragma, stacking a 
-comment indicating that test expansion is happening.
-
-=head2 validate_options
-
-Standard C<App::SimpleScan> callback: validates the command-line
-arguments, calling the appropriate pragma methods as necessary.
-
-=head2 per_test
-
-Actually implements the test. If test_expand has been turned on
-(either via pragma or command-line), emits a comment following 
-every test.
-
-=head1 DIAGNOSTICS
+Bumps the "demo_called" slot in the object.
 
 None.
 
 =head1 CONFIGURATION AND ENVIRONMENT
 
-App::SimpleScan::Plugin::TextExpand requires no configuration files or environment variables.
+App::SimpleScan::Plugin::TestNextLine requires no configuration files or environment variables.
 
 
 =head1 DEPENDENCIES
@@ -148,7 +102,7 @@ Joe McMahon  C<< <mcmahon@cpan.org > >>
 
 =head1 LICENCE AND COPYRIGHT
 
-Copyright (c) 2005,2006 Joe McMahon C<< <mcmahon@yahoo-inc.com > >> and Yahoo!. All rights reserved.
+Copyright (c) 2006, Joe McMahon C<< <mcmahon@yahoo-inc.com > >> and Yahoo!. All rights reserved.
 
 This module is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself. See L<perlartistic>.

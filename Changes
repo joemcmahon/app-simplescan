@@ -1,5 +1,13 @@
 Revision history for App-SimpleScan
 
+1.16  Fri Jul 28 11:15:06 PDT 2006
+	- Add input hook support for include-style plugins
+	- move init() call for plugins to _load_plugins. init()
+	  was called only if the plugin installed pragmas, which 
+	  is non-intuitive.
+	- Reorder operations in new() so that the object is filled in
+	  as much as possible before loading and initializing plugins.
+
 1.15  Wed Jul 19 16:24:42 PDT 2006
 	- reorder the creation of the test boilerplate to avoid 
 	  ordering errors with the new Include plugin

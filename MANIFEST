@@ -13,6 +13,7 @@ examples/ss_extpattern.in
 examples/ss_fail.in
 examples/ss_garbage1.in
 examples/ss_garbage2.in
+examples/ss_garbage3.in
 examples/ss_multisub.in
 examples/ss_newbracket.in
 examples/ss_nodouble.in

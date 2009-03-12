@@ -3,7 +3,7 @@ use base qw(Class::Accessor::Fast);
 use Regexp::Common;
 use strict;
 
-our $VERSION = "0.19";
+our $VERSION = "0.20";
 
 __PACKAGE__->mk_accessors(qw(raw uri regex delim kind comment metaquote syntax_error flags test_count));
 
@@ -243,8 +243,9 @@ This document describes App::SimpleScan::TestSpec version 0.01
     # Fetch the comment.
     my $comment = $spec->comment();
 
-    # Expand the test spec into test code, performing all substitutions.
-    my @tests = $spec->expand();
+    # Expand the test spec into test code.
+    # Substitutions should already have been done at this point
+    my @tests = $spec->as_tests();
   
 =head1 DESCRIPTION
 
@@ -325,8 +326,8 @@ This test should be skipped; later, it should I<not> match.
 =head2 as_tests
 
 Expands the test spec into one or more lines of Perl test code.
-Uses the C<app()> method to access the pragma substitution data
-to expand any substitutions in the line.
+This method should only be called on test specs that have already been 
+through substitution in the main program.
 
 =head1 EXTENDING APP::SIMPLESCAN
 

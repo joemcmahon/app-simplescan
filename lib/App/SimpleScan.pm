@@ -1,6 +1,6 @@
 package App::SimpleScan;
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 $|++;
 
 use warnings;
@@ -80,11 +80,6 @@ sub new {
 
   $self->handle_options;
 
-  # Enable UTF-8 encoding on all filehandles.
-  #binmode(STDOUT, ":utf8");
-  #binmode(STDERR, ":utf8");
-  #binmode(STDIN,  ":utf8");
-
   return $self;
 }
 
@@ -158,7 +153,7 @@ sub transform_test_specs {
         # It's a substitution if it has no other meaning.
         if (defined($5)) {
           my $var = $1;
-          my @data = expand_backticked($5);
+          my @data = $self->expand_backticked($5);
           my ($status, $message) = $self->_check_dependencies($var, @data);
           if ($status) {
             $self->_substitution_data($var, @data);
@@ -201,11 +196,10 @@ sub transform_test_specs {
     $self->set_current_spec($item);
 
     if ($item->syntax_error) {
-      $self->tests([
-                    @{$self->tests},
-                    "# ".$item->raw."\n",
-                    "# Possible syntax error in this test spec\n",
-                   ]) if ${$self->warn};
+      $self->stack_code(<<EOS) if ${$self->warn};
+# @{[$item->raw]}
+# Possible syntax error in this test spec
+EOS
                      
     }
     else {
@@ -267,7 +261,7 @@ sub finalize_tests {
 
 # Handle backticked values in substitutions.
 sub expand_backticked {
-  my ($text) = shift;
+  my ($self, $text) = @_;
 
   # Extract strings and backticked strings and just plain words.
   my @data;
@@ -295,10 +289,19 @@ sub expand_backticked {
     # The grep removes all the strings starting with whitespace, leaving
     # only the things we actually want.
     @data = grep { /^\s/ ? () : $_ } 
-            extract_multiple($text . qq( '!!THISISGARBAGE!!'), 
+            extract_multiple($text . qq( '***-Your-string-may-have-mismatched-quotes-or-newlines-in-it-***'), 
                              [qr/[^'"`\s]+/,\&extract_quotelike]);
     # Throw away the garbage.
     pop @data;
+    if (grep { $_ eq qq(***-Your-string-may-have-mismatched-quotes-or-newlines-in-it-***)} @data) {
+      $self->stack_code(<<EOS) if ${$self->warn};
+# $text
+# This line has an unmatched quote of some kind and was skipped.
+# Subsequent lines may have a problem if this was because of a newline.
+EOS
+    # Remove garbage indicator.
+    @data = grep {$_ ne qq(***-Your-string-may-have-mismatched-quotes-or-newlines-in-it-***)} @data;
+    }
   } 
 
   local $_;
@@ -306,7 +309,7 @@ sub expand_backticked {
   for (@data) {
     # eval a backticked string and split it the same way.
     if (/^`(.*)$`/) {
-      push @result, expand_backticked(eval $_);
+      push @result, $self->expand_backticked(eval $_);
     }
     # Double-quoted: eval it.
     elsif (/^"(.*)"$/) {

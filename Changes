@@ -1,9 +1,15 @@
 Revision history for App-SimpleScan
 
+1.11  Fri Jun 23 17:41:22 PDT 2006
+	- expand_backticked was changed to a method to allow it
+	  to more easily emit warnings for mismatched quotes.
+	- mismatched quotes are now explicitly diagnosed. Formerly,
+	  there'd be a !!THISISGARBAGE!! in the output. Bad form.
+
 1.10  Fri Jun 23 12:53:33 PDT 2006
 	- Unicode works!
-	- accented character tests gone. 
-	- Non-Latin test patches welcome.
+  	  - accented character tests gone. 
+	  - Non-Latin test patches welcome.
 
 1.09  Mon Jun 19 12:07:25 PDT 2006
 	- Add test run status reporting to simple_report -status

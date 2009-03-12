@@ -16,6 +16,7 @@ examples/ss_garbage1.in
 examples/ss_garbage2.in
 examples/ss_garbage3.in
 examples/ss_multisub.in
+examples/ss_nested.in
 examples/ss_newbracket.in
 examples/ss_nodouble.in
 examples/ss_over_defer.in
@@ -68,6 +69,7 @@ t/38ss_status.t
 t/39backslash.t
 t/40inputq.t
 t/41extract.t
+t/42nested_sub.t
 t/App/SimpleScan/Plugin/TestExpand.pm
 t/App/SimpleScan/Plugin/TestNextLine.pm
 t/critic.t

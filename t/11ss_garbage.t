@@ -6,7 +6,7 @@ use IO::ScalarArray;
 
 $ENV{HARNESS_PERL_SWITCHES} = "" unless defined $ENV{HARNESS_PERL_SWITCHES};
 
-@output = `$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan --gen --warn <examples/ss_garbage1.in`;
+@output = `$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan --gen <examples/ss_garbage1.in`;
 @expected = map {"$_\n"} split /\n/,<<EOF;
 use Test::More tests=>0;
 use Test::WWW::Simple;
@@ -35,10 +35,55 @@ use Test::WWW::Simple;
 use strict;
 
 mech->agent_alias('Windows IE 6');
+# Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Nam vestibulum tortor
+# Possible syntax error in this test spec
+# sit amet ante. Maecenas lobortis, est a consectetuer molestie, est nulla 
+# Possible syntax error in this test spec
+# gravida justo, et pulvinar dolor sem eget turpis. In massa sem, mollis non, 
+# Possible syntax error in this test spec
+# pulvinar sed, venenatis in, elit. Curabitur odio nunc, feugiat quis, tristique 
+# Possible syntax error in this test spec
+# ac, volutpat eget, elit. In eu risus. Quisque placerat, augue a vehicula 
+# Possible syntax error in this test spec
+# accumsan, est arcu rhoncus ligula, sagittis mollis libero ante aliquet risus. 
+# Possible syntax error in this test spec
+# Aenean sollicitudin adipiscing dolor. Phasellus dictum elit sed neque. Donec 
+# Possible syntax error in this test spec
+# tincidunt elit sit amet dolor. Aenean placerat lorem. Praesent vehicula pede 
+# Possible syntax error in this test spec
+# ac tortor rutrum fermentum. Sed accumsan. Fusce id dui at nulla sodales 
+# Possible syntax error in this test spec
+# dignissim. Aliquam quam erat, porta sit amet, molestie a, laoreet id, ante. 
+# Possible syntax error in this test spec
+# Maecenas tempor lectus congue ligula. Curabitur lacinia diam. Aliquam erat 
+# Possible syntax error in this test spec
+# volutpat.
+# Possible syntax error in this test spec
 page_like "http://perl.org/",
           qr/perl/,
           qq(Garbage lines were ignored [http://perl.org/] [/perl/ should match]);
-
+# Donec lorem libero, dictum eget, tempus id, fringilla adipiscing, dolor. Donec 
+# Possible syntax error in this test spec
+# massa. Cras ullamcorper massa sit amet wisi. Donec eleifend, risus non 
+# Possible syntax error in this test spec
+# eleifend ornare, orci libero fringilla orci, luctus auctor tellus tortor ut 
+# Possible syntax error in this test spec
+# odio. Aliquam sit amet magna. Sed tristique bibendum libero. Sed dignissim 
+# Possible syntax error in this test spec
+# lobortis magna. Mauris posuere consectetuer odio. Maecenas metus velit, 
+# Possible syntax error in this test spec
+# accumsan vitae, laoreet vel, porttitor at, purus. Phasellus consectetuer pede 
+# Possible syntax error in this test spec
+# id velit. Fusce lobortis nisl non nibh. Nam ipsum lacus, tincidunt sit amet, 
+# Possible syntax error in this test spec
+# bibendum at, sollicitudin mollis, elit. Nam sollicitudin porta massa. Fusce at 
+# Possible syntax error in this test spec
+# elit. Etiam convallis enim molestie erat. Aenean dapibus nunc quis lorem. 
+# Possible syntax error in this test spec
+# Curabitur ullamcorper arcu non mi porta sodales. Sed feugiat sagittis mauris. 
+# Possible syntax error in this test spec
+# Pellentesque ullamcorper. Sed id wisi.
+# Possible syntax error in this test spec
 EOF
 eq_or_diff(\@output, \@expected, "output as expected");
 

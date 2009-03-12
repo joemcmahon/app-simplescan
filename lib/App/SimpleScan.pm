@@ -4,7 +4,7 @@ use warnings;
 use strict;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.17';
+our $VERSION = '1.19';
 
 use Carp;
 use Getopt::Long;
@@ -212,7 +212,7 @@ sub transform_test_specs {
     # test spec in an overriding method.
     $self->set_current_spec($item);
 
-    if ($item->syntax_error and ${$self->warn}) {
+    if ($item->syntax_error) {
       $self->stack_code(<<"END_MSG");
 # @{[$item->raw]}
 # Possible syntax error in this test spec
@@ -366,11 +366,15 @@ sub _var_names {
   return keys %{ $self->_subs };
 }
 
-# If the current thing has substitutions in it,
-# queue those onto the input and return true.
-# Else return false.
-sub _queue_var_names {
-  my($self, $line) = @_;
+# If the current thing has substitutions in it, find the variables involved and
+# return their names.
+sub _find_substitutions {
+  my($self, $string) = @_;
+
+  # We absolutely have to localize $_ because we may get called recursively
+  # inside the map() below.
+  local $_;
+
   # Get the variables in this line. We'll need these and all their
   # dependencies, but nothing else. This speeds up substitution in 
   # a major way because we don't try fruitless variations of variables
@@ -378,29 +382,67 @@ sub _queue_var_names {
   #
   # First, parse the unique substitutions out of the line.
 
-  my %vars_of = map { $_ => 1 }             # a hash item for  every ...
-                    ( grep { defined $_ }     # defined item in ...
-                           (                     # items matching ...
-                             $line =~ / < (\S+?) > # non-blanks in 
-                                                   # outward-pointing
-                                        |          # or
-                                        > (\S+?) < # non-blanks in 
-                                                   # inward-pointing
-                                     /xg         # (every one of them)
-                            )
-                     );
-  my @vars = keys %vars_of;
+  my $out_angled;
+  $out_angled = qr/ < ( [^<>] | (??{$out_angled}) )* > /x;
+                    # open angle-bracket then ...
+                        # non-angle chars ...
+                              # or ...
+                                 # another angle-bracketed item ...
+                                                   # if there are any ...
+                                                     # and a close angle-bracket
+  my $in_angled;
+  $in_angled  = qr/ > ( [^<>] | (??{$in_angled}) )* < /x;
+                    # open angle-bracket then ...
+                        # non-angle chars ...
+                              # or ...
+                                 # another angle-bracketed item ...
+                                                   # if there are any ...
+                                                     # and a close angle-bracket
+  # Extract angle-bracketed text.
+  my @vars =  grep { defined $_ }     # defined item in ...
+                   ( $string =~ / ($out_angled) | ($in_angled) /xg );
+                                            # variable-like items
+
+  # The pattern above picks up extra garbage that we don't want, so
+  # discard it.
+  @vars = grep { ($_) = /^[<>](.*)[<>]$/ } @vars;
+
+  # It's possible that a variable was mentioned multiple times in a line.
+  # Extract only the unique names.
+  my %unique_vars = map {$_ => 1} @vars;
+  @vars = keys %unique_vars;
 
   # @vars may now include things like variables we've forgotten and 
   # HTML tags. Discard these guys. If nothing's left, bow out.
   @vars = grep { $self->_subs->{$_} } @vars;
+  return unless @vars;
+
+  # Each variable may (possibly) contain nested variable references.
+  # If we find any, recursively find the appropriate substitutions
+  # for those and return them.
+  my @nested_vars = map { $self->_find_substitutions($_) } @vars;
+  return $self->_find_substitutions(@nested_vars) if @nested_vars;
+
+  # Anything left at this point is an actual, un-nested variable. Check for 
+  # dependencies on the remaining variables, adding then to the list
+  # of variables.
+  @vars = $self->_all_dependencies(@vars);
+
+  # Return the list of zero or more variables.
+  return @vars;
+}
+
+# If there are any substitutions, build them, stack them on the input,  
+# and return true. Otherwise, just return fales so this line will be processed.
+sub _queue_var_names {
+  my ($self, $line) = @_;
+
+  # Figure out what variables should substitute in here.
+  # Drop out if nothing should substitute.
+  my @vars = $self -> _find_substitutions($line);
   return 0 unless @vars;
 
-  # Anything left at this point is an actual variable. Check for 
-  # dependencies on the remaining variables. Bow out if nothing's left.
-  @vars = $self->_all_dependencies(@vars);
-  return 0 unless @vars;
-   
+  # Do the substitutions, if any.
   my $results = $self->_substitute($line, @vars );
   if (@{ $results } != 1) {
     # substitutions definitely happened

@@ -1,5 +1,8 @@
 Revision history for App-SimpleScan
 
+0.27  Thu Jan 26 12:49:14 PST 2006
+	- added simple_report to this distribution
+
 0.26  Thu Jan 12 12:05:05 PST 2006
 	- added support for backticked and quoted substitutions
 

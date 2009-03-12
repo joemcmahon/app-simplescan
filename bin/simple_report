@@ -1,0 +1,217 @@
+#!/home/y/bin/perl -w
+use strict;
+use Getopt::Long;
+use Test::Harness;
+use Test::Harness::Iterator;
+
+our $VERSION = "0.03";
+
+# This is an example of how to write your own harness using 
+# Test::Harness::Straps.  It duplicates most of the features of 
+# Test::Harness.
+#
+# It uses an undocumented, experimental
+# callback interface.  If you like it, don't like it, would like
+# to see it become non-experimental, etc... discuss on perl-qa@perl.org
+#
+#  simple_report NAME <tap.output
+
+my($verbose);
+GetOptions("verbose+" => \$verbose);
+
+my $test_name = shift || "UNNAMED_TEST";
+
+my $iterator = Test::Harness::Iterator->new(\*STDIN);
+my $strap = Test::Harness::Straps->new;
+
+$strap->_reset_file_state;
+$strap->{file} = "STDIN";
+
+my %totals  = (
+                max      => 0,
+                seen     => 0,
+
+                ok       => 0,
+                todo     => 0,
+                skip     => 0,
+                bonus    => 0,
+
+                details  => []
+               );
+
+# Store the counts into the Straps object
+# so callbacks can find them.
+$strap->{totals}{STDIN}         = \%totals;
+
+# Read and analyze input.
+while( defined(my $line = $iterator->next) ) {
+    $strap->_analyze_line($line, \%totals);
+    last if $strap->{saw_bailout};
+}
+
+# Print summary
+print "$test_name: tests=$totals{seen}, ok=$totals{ok}, failed=@{[$totals{seen}-$totals{ok}]}, skipped=$totals{skip}, todo=$totals{todo}";
+print (($totals{bonus} ? " ($totals{bonus} UNEXPECTEDLY SUCCEEDED)" : ""), "\n");
+
+# Print details if requested
+if ($verbose) {
+  my $test_num = 0;
+  for my $test_detail (@{$totals{details}}) {
+    $test_num++;
+
+    if ($test_detail->{type} eq 'todo') {
+      if ($test_detail->{actual_ok}) {
+        print "T $test_num $test_detail->{name}\n";
+        snapshot($test_detail);
+      }
+    }
+    next if $test_detail->{'ok'};
+    print "F $test_num $test_detail->{name}\n";
+
+    # Print detailed details (diags) if requested
+    if ($verbose > 1) {
+      # All diags will be there, including snapshot
+      my $diags =  "# ".$test_detail->{diagnostics};
+      chomp $diags;
+      $diags =~ s/\n/\n# /g;
+      print "$diags\n";
+    }
+    else {
+      # Verbose report - snapshots only (if any)
+      snapshot($test_detail);
+    }
+  }
+}
+
+sub snapshot {
+  my ($test_detail) = shift;
+  return if !$test_detail->{diagnostics};
+
+  my($snapshot) = ($test_detail->{diagnostics} =~ /^(See snapshot.*\z)/sm);
+  print ("# ",$snapshot) if $snapshot;
+}
+
+__END__
+
+=head1 NAME
+
+micro-harness - Ultra-compact TAP summary
+
+=head1 SYNOPSIS
+
+  # For a one-line summary:
+  % simple_scan <ss.in 2>&1 | simple_report MyLabel
+  MyLabel: tests=9, ok=8, failed=1, skipped=1, todo=2 (1 UNEXPECTEDLY SUCCEEDED)
+
+  # For the summary plus a one-line comment for failed 
+  # tests and unexpectedly-suceeding TODO tests:
+  % simple_scan <ss.in 2>&1 | simple_report -v MyLabel
+  MyLabel: tests=9, ok=8, failed=1, skipped=1, todo=2 (1 UNEXPECTEDLY SUCCEEDED)
+  F 7 Broken test
+  T 9 unexpected success
+
+  # For the summary plus one-line comment plus diagnostics:
+  % simple_scan <ss.in 2>&1 | simple_report -v -v MyLabel
+  MyLabel: tests=9, ok=8, failed=1, skipped=1, todo=2 (1 UNEXPECTEDLY SUCCEEDED)
+  F 7 Deliberately broken test (zorch) [http://zorch.mysite.com/] [/fnord/ should match]
+  #   Failed test 'Deliberately broken test (zorch) [http://zorch.mysite.com] [/fnord/ should match]'
+  #   in /home/y/lib/perl5/site_perl/5.6.1/Test/WWW/Simple.pm at line 65.
+  #          got: "<!doctype html public "-//W3C//DTD HTML 4.01//EN" "...
+  #       length: 37943
+  #     doesn't match '(?-xism:fnord)'
+  T 9 unexpected success (glonk) [http://glonk.mysite.com/] [/sproing/ should match]
+
+
+=head1 DESCRIPTION
+
+Raw TAP output is often lengthy, making it difficult to spot tests that have failed.
+C<simple_report> is a TAP filter: it reads TAP output from its standard input, and
+creates a compact report as to
+
+=over 4
+
+=item * number of tests run
+
+=item * number of tests passed
+
+=item * number of tests failed
+
+=item * number of tests skipped
+
+=item * number of TODO tests (and number unexpectedly passing, if any)
+
+=back
+
+If you want to see the test comments from the tests which failed, add C<--verbose>
+(or C<-v> for the lazy) to get a one-line printout of the failing (and 
+unexpectedly-succeeding) tests as well.
+
+If you want to see all of the diag messages as well, specify C<-v -v> (that's
+I<two> C<--verbose> options). 
+
+If you've installed C<WWW::Mechanize::Plugin::Snapshot> and snapshots were taken, 
+a one-line diag will be printed showing you where the snapshot was stored.
+
+=head1 INTERFACE
+
+See the C<DESCRIPTION> section.
+
+=head1 DIAGNOSTICS
+
+If you do not specify a test name as the first argument, C<UNNAMED_TEST>
+is assumed.
+
+Output will indicate no tests were run if the input is not valid TAP:
+
+  > perldoc simple_report | simple_report
+  UNNAMED_TEST: tests=0, ok=0, failed=0, skipped=0, todo=0
+
+=head1 CONFIGURATION AND ENVIRONMENT
+
+No config files or environment variables used.
+
+=head1 DEPENDENCIES
+
+Test::Harness, simple_scan 
+
+=head1 INCOMPATIBILITIES
+
+None known.
+
+=head1 BUGS AND LIMITATIONS
+
+None reported.
+
+=head1 AUTHOR
+
+Joe McMahon C<< <mcmahon@yahoo-inc.com> >>
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright (c) 2005, Yahoo! and Joe McMahon. All rights reserved.
+
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+=head1 DISCLAIMER OF WARRANTY
+
+BECAUSE THIS SOFTWARE IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY
+FOR THE SOFTWARE, TO THE EXTENT PERMITTED BY APPLICABLE LAW. EXCEPT
+WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER
+PARTIES PROVIDE THE SOFTWARE "AS IS" WITHOUT WARRANTY OF ANY KIND,
+EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE
+ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE SOFTWARE IS WITH
+YOU. SHOULD THE SOFTWARE PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL
+NECESSARY SERVICING, REPAIR, OR CORRECTION.
+
+IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
+WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR
+REDISTRIBUTE THE SOFTWARE AS PERMITTED BY THE ABOVE LICENCE, BE LIABLE
+TO YOU FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL, OR CON-
+SEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE THE SOFT-
+WARE (INCLUDING BUT NOT LIMITED TO LOSS OF DATA OR DATA BEING RENDERED
+INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A FAILURE OF
+THE SOFTWARE TO OPERATE WITH ANY OTHER SOFTWARE), EVEN IF SUCH HOLDER
+OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+

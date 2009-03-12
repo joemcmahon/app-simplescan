@@ -1,5 +1,7 @@
 bin/languages
+bin/simple_report
 bin/simple_scan
+bin/simple_scan.yahoo
 Changes
 examples/ss.in
 examples/ss_backtick1.in
@@ -49,6 +51,13 @@ t/24per_test.t
 t/25capture.t
 t/26ss_noagent.t
 t/27backtick.t
+t/28planned.t
+t/29unplanned.t
+t/30diags.t
+t/31snapshot.t
 t/App/SimpleScan/Plugin/TestExpand.pm
+t/noplan.tap
+t/planned.tap
 t/pod-coverage.t
 t/pod.t
+t/snap.tap

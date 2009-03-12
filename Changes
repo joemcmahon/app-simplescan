@@ -1,5 +1,9 @@
 Revision history for App-SimpleScan
 
-0.0.1  Fri Sep 16 11:49:25 2005
-       Initial release.
+0.02  Wed Oct 12 13:55:39 2005
+	- Fixed accented character cleanup - wasn't using the
+          cleaned-up version of the regex
+
+0.01  Fri Sep 16 11:49:25 2005
+	- Initial release.
 

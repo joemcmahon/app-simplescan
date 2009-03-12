@@ -36,5 +36,6 @@ t/15ss_nodouble.t
 t/16ss_fails.t
 t/17ss_works.t
 t/18ss_intl.t
+t/19ss_accent.t
 t/pod-coverage.t
 t/pod.t

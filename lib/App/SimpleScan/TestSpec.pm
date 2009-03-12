@@ -4,6 +4,8 @@ use Regexp::Common;
 
 use strict;
 
+our $VERSION = "0.02";
+
 __PACKAGE__->mk_accessors(qw(raw uri regex delim kind comment metaquote syntax_error accented));
 
 my $app;     # Will store a reference to the parent App::Simplescan
@@ -148,6 +150,7 @@ sub parse {
   # Handle accented chars if any.
   my $match_var = "1";
   my %accents;
+  $regex = $self->regex();
   while (my($accented) = ($regex =~ /([\x80-\xff])/)) {
     $regex =~ s/[\x80-\xff]/(.)/;
     $accents{$match_var++} = ord($accented);

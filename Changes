@@ -1,5 +1,10 @@
 Revision history for App-SimpleScan
 
+1.03  Tue Apr 11 14:17:13 PDT 2006
+	- mysterious 08cache.t test failure solved!
+	- began work on substitution optimization
+	- suppressed (finally) the Text::Balanced warnings
+
 1.02  Mon Apr 10 09:51:38 PDT 2006
 	- Initial upload failed; trying again
 

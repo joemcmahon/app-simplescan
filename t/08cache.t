@@ -1,6 +1,20 @@
 use Test::More tests=>4;
 use Test::Differences;
 
+my $have_cache_plugin;
+my $no;
+
+BEGIN {
+  unless (eval "require App::SimpleScan::Plugin::Cache; 1") {
+    $have_cache_plugin = "";
+    $no = "no_cache";
+  }
+  else {
+    $have_cache_plugin = "mech()->";
+    $no = "nocache";
+  }
+}
+
 $ENV{HARNESS_PERL_SWITCHES} = "" unless defined $ENV{HARNESS_PERL_SWITCHES};
 
 my @output = `echo "%%cache" |$^X $ENV{HARNESS_PERL_SWITCHES} -Iblib/lib bin/simple_scan --gen`;
@@ -12,7 +26,7 @@ use strict;
 
 my \@accent;
 mech->agent_alias('Windows IE 6');
-cache();
+${have_cache_plugin}cache();
 
 EOS
 eq_or_diff(join("",@output), $expected, "output matches");
@@ -26,7 +40,7 @@ use strict;
 
 my \@accent;
 mech->agent_alias('Windows IE 6');
-no_cache();
+${have_cache_plugin}$no();
 
 EOS
 eq_or_diff(join("",@output), $expected, "output matches");

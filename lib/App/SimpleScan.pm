@@ -1,6 +1,6 @@
 package App::SimpleScan;
 
-our $VERSION = '1.02';
+our $VERSION = '1.03';
 use 5.006;
 
 use warnings;
@@ -268,8 +268,8 @@ sub expand_backticked {
   my @data;
   {
     # extract_quotelike complains if no quotelike strings were found.
-    # Shut this up.
-    no warnings;
+    # Shut this up by adding one and throwing it away after. Sadly, 
+    # 'no warnings' will NOT shut it up.
 
     # The result of the extract multiple is to give us the whitespace
     # between words and strings with leading whitespace before the
@@ -290,8 +290,10 @@ sub expand_backticked {
     # The grep removes all the strings starting with whitespace, leaving
     # only the things we actually want.
     @data = grep { /^\s/ ? () : $_ } 
-            extract_multiple($text, [qr/[^'"`\s]+/,\&extract_quotelike]);
-  
+            extract_multiple($text . qq( '!!THISISGARBAGE!!'), 
+                             [qr/[^'"`\s]+/,\&extract_quotelike]);
+    # Throw away the garbage.
+    pop @data;
   } 
 
   local $_;
@@ -794,6 +796,29 @@ sub _depend {
   for my $parent (@parents) {
     push @{ $self->{PragmaDepend}->{$parent} }, $item;
   }
+}
+
+sub _all_dependencies {
+  my ($self, @items) = @_;
+  # We start by accumulating the dependencies of 
+  # the item(s) we were handed.
+  local $_;
+  my %accumulated;
+  $accumulated{$_} = 1 foreach (@items);
+  for my $item (@items) {
+    my @deps = @{ $self->_depend($item) };
+    $accumulated{$_} = 1 foreach (@deps);
+  }
+
+  # No dependencies; empty list.
+  return () if int keys %accumulated == 0; 
+
+  # No new dependencies. Stop recursing.
+  return @items if int keys %accumulated == int @items;
+
+  # At least one new dependency.
+  # Recursively call this routine to resolve any new dependencies.
+  return $self->_all_dependencies(keys %accumulated);
 }
 
 sub _tsort {

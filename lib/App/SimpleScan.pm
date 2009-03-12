@@ -4,7 +4,7 @@ use warnings;
 use strict;
 use English qw(-no_match_vars);
 
-our $VERSION = '2.00';
+our $VERSION = '2.02';
 
 use Carp;
 use Getopt::Long;
@@ -322,9 +322,9 @@ sub expand_backticked {
   # It's called "unrolling" the regex there.
 
   #  Pattern: quote (nonspecial)*(escape anything (nonspecial)*)* quote
-  my $qregex  = qr/'[^'\\]*(\\.[^'\\]*)*'/;
-  my $qqregex = qr/"[^"\\]*(\\.[^"\\]*)*"/;
-  my $qxregex = qr/`[^`\\]*(\\.[^`\\]*)*`/;
+  my $qregex  = qr/'[^'\\]*(?:\\.[^'\\]*)*'/;
+  my $qqregex = qr/"[^"\\]*(?:\\.[^"\\]*)*"/;
+  my $qxregex = qr/`[^`\\]*(?:\\.[^`\\]*)*`/;
 
   # Plus we need the cleanup tokenizer: match anything nonblank. This
   # picks up tokens that are not properly-balanced quoted strings.

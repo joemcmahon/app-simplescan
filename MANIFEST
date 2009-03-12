@@ -1,7 +1,6 @@
 bin/languages
 bin/simple_report
 bin/simple_scan
-bin/simple_scan.yahoo
 Changes
 examples/cross_product.in
 examples/expression.in
@@ -83,6 +82,7 @@ t/46xproduct.t
 t/47line.t
 t/48subs_base.t
 t/49antique.t
+t/50quoteescbug.t
 t/App/SimpleScan/Plugin/TestExpand.pm
 t/App/SimpleScan/Plugin/TestNextLine.pm
 t/critic.t

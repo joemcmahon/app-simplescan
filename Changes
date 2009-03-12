@@ -1,4 +1,14 @@
 Revision history for App-SimpleScan
+2.02  Thu Sep 28 13:25:20 PDT 2006
+	- longstanding bug with quoted strings containing backslashes
+	  finally detected in the field and fixed. Strings like 
+          'I am quoted\\.' would stack an extra '\\.' due to a 
+	  group inside the quote-matching regexes that should have
+	  been non-capturing.
+
+2.01  Tue Sep 26 11:26:49 PDT 2006
+	- Missing PREREQ for Clone added
+
 2.00  Wed Sep 20 14:06:09 PDT 2006
 	- First refactoring: substitution engine extracted
 	  -- Added App::SimpleScan::Substitution and

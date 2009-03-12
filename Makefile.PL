@@ -19,6 +19,7 @@ WriteMakefile(
         'WWW::Mechanize'       => '1.16',
         'WWW::Mechanize::Pluggable' => '0.09',
         'Graph'                => '0.65',
+        'Clone'                => '0.20',
         'IO::ScalarArray'      => '2.110',
         'Encode'               => 0,
         'Sub::Installer'       => 0,

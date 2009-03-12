@@ -21,6 +21,7 @@ WriteMakefile(
         'Text::Balanced'       => '1.95',
         'IO::ScalarArray'      => '2.110',
         'Encode'               => 0,
+        'Sub::Installer'       => 0,
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'App-SimpleScan-*' },

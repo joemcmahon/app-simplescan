@@ -1,5 +1,20 @@
 Revision history for App-SimpleScan
 
+1.15  Wed Jul 19 16:24:42 PDT 2006
+	- reorder the creation of the test boilerplate to avoid 
+	  ordering errors with the new Include plugin
+
+1.14  Mon Jul 17 16:56:52 PDT 2006
+	- changes to conform to Perl::Critic recommendations
+
+1.13  Wed Jul 12 11:52:33 PDT 2006
+	- contributed fix: allow non-http URLs to be tested
+	  (from bbking@checkfree.com)
+	- Clarified App::SimpleScan docs: this is not useful to
+	  read if you want to run simple_scan; only useful if
+	  you're subclassing this class (or writing your own app)
+	- Addded PLUGINS section to simple_scan doc.
+
 1.12  Wed Jul  5 12:40:18 PDT 2006
         - fixed pattern interpolation into the comment section of
 	  the generated code so Perl wouldn't complain about bad

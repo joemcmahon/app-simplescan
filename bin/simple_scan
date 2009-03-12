@@ -384,6 +384,30 @@ The C<nocache> pragma turns I<off> URL caching; this is useful if you
 have something like a REST interface that may return different values 
 from repeated accesses to the same URL.
 
+=head1 PLUGINS
+
+simple_scan is extended via plugins in the C<App::SimpleScan::Plugin>
+namespace. Currently-released plugins:
+
+=over 4
+
+=item * C<App::SimpleScan::Plugin::Cache> - disk-based caching
+
+=item * C<App::SimpleScan::Plugin::Snapshot> - HTML snapshots of tests
+
+=item * C<App::SimpleScan::Plugin::Plaintext> - check un-marked-up page text
+
+=item * C<App::SimpleScan::Plugin::Retry> - retries HTTP failures
+
+=item * C<App::SimpleScan::Plugin::LinkCheck> - link counting/presence/absence
+
+=item * C<App::SimpleScan::Plugin::Forget> - discard a substitution
+
+Read the documentation for these plugin classes for information on 
+pragmas and/or command-line options that they provide.
+
+=back 
+
 =head1 BUGS AND LIMITATIONS
 
 Substitutions, especially when there are large numbers of variables 

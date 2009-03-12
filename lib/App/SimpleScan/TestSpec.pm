@@ -1,9 +1,10 @@
 package App::SimpleScan::TestSpec;
-use base qw(Class::Accessor::Fast);
-use Regexp::Common;
 use strict;
+use warnings;
+use Regexp::Common;
 
-our $VERSION = "0.21";
+use base qw(Class::Accessor::Fast);
+our $VERSION = 0.23;
 
 __PACKAGE__->mk_accessors(qw(raw uri regex delim kind comment metaquote syntax_error flags test_count));
 
@@ -11,17 +12,17 @@ my $app;     # Will store a reference to the parent App::Simplescan
 
 my %test_type = 
   (
-    'Y' => <<EOS,
+    'Y' => <<"EOS",
 page_like "<uri>",
           qr<delim><regex><delim><flags>,
           qq(<comment> [<uri>] [<qmregex> should match]);
 EOS
-    'N' => <<EOS,
+    'N' => <<"EOS",
 page_unlike "<uri>",
             qr<delim><regex><delim><flags>,
             qq(<comment> [<uri>] [<qmregex> shouldn't match]);
 EOS
-    'TY' => <<EOS,
+    'TY' => <<"EOS",
 TODO: {
   local \$Test::WWW::Simple::TODO = "Doesn't match now but should later";
   page_like "<uri>",
@@ -29,7 +30,7 @@ TODO: {
             qq(<comment> [<uri>] [<qmregex> should match]);
 }
 EOS
-    'TN' => <<EOS,
+    'TN' => <<"EOS",
 TODO: {
   local \$Test::WWW::Simple::TODO = "Matches now but shouldn't later";
   page_unlike "<uri>",
@@ -37,7 +38,7 @@ TODO: {
               qq(<comment> [<uri>] [<qmregex> shouldn't match]);
 }
 EOS
-    'SY' => <<EOS,
+    'SY' => <<"EOS",
 SKIP: {
   skip 'Deliberately skipping test that should match', 1; 
   page_like "<uri>",
@@ -45,7 +46,7 @@ SKIP: {
             qq(<comment> [<uri>] [<qmregex> should match]);
 }
 EOS
-    'SN' => <<EOS,
+    'SN' => <<"EOS",
 SKIP: {
   skip "Deliberately skipping test that shouldn't match", 1; 
   page_unlike "<uri>",
@@ -57,7 +58,9 @@ EOS
 
 sub app {
   my ($class_or_object, $appref) = @_;
-  $app = $appref if defined $appref;
+  if (defined $appref) {
+    $app = $appref;
+  }
   return $app;
 }
 
@@ -76,7 +79,9 @@ sub new {
 
 sub parse {
   my ($self, $line) = @_;
-  $line = $self->raw unless defined $line;
+  if (!defined $line) {
+    $line = $self->raw;
+  }
   chomp $line;
 
   # Originally, we used Regex::Common to parse the URI and regex
@@ -97,12 +102,22 @@ sub parse {
   # either end if they are there.
   
   # Remove URI portion.
-  my ($URI, $rest) = ($line =~ /^(.*?)\s+(.*)$/);
+  my ($URI, $rest) = ($line =~ /^(.*?)\s+(.*)$/mx);
 
-  return 0 if !defined($URI) or !($URI =~ /$RE{URI}/);
+  if (! defined $URI) {
+    return 0;
+  }
+
+  # Pull the scheme from the URI and pass it explicitly to
+  # Regexp::Common. Otherwise Regexp::Common::URI::http
+  #  assumes 'HTTP', meaning that any other scheme won't match,
+  #  causing this code to ignore (for instance) https: links.
+  my ($scheme) = $URI =~ /^(\w+)/mx;
+  return 0 if !($URI =~ /$RE{URI}{HTTP}{-scheme => $scheme }/mx);
+
   # Remove comment and kind.
   my ($comment, undef, $kind, $maybe_regex) = 
-    ((scalar reverse $rest) =~ /^(.*?)(\s+|\s*)\b(Y|N|YT|NT|YS|NS)\s+(.*)$/);
+    ((scalar reverse $rest) =~ /^(.*?)(\s+|\s*)\b(Y|N|YT|NT|YS|NS)\s+(.*)$/mx);
   $self->comment(scalar reverse $comment);
   $self->kind(scalar reverse $kind);
   $self->uri($URI);
@@ -112,32 +127,35 @@ sub parse {
   # Clean up regex if needed.
   my $regex = reverse $maybe_regex;
   if ((undef, undef, $clean, undef, $flags) = 
-       ($regex =~ m|^$RE{delimited}{-delim=>'/'}{-keep}([ics]*)$|)) {
+       ($regex =~ m|^$RE{delimited}{-delim=>'/'}{-keep}([ics]*)$|mx)) {
     # Standard slash-delimited regex.
     $self->regex($clean);
-    $self->delim("/");
+    $self->delim('/');
     $self->flags($flags);
   }
-  elsif (($delim, $clean, $flags) = ($regex =~ /^m(.)(.*)\1([ics]*)$/)) {
+  elsif (($delim, $clean, $flags) = ($regex =~ /^m(.)(.*)\1([ics]*)$/mx)) {
     # m-something-regex-something pattern.
     $self->delim($1);
     $self->regex($clean);
     $self->flags($flags);
   }
-  elsif (($clean, $flags) = ($regex =~ m|^/(.*)/([ics]*)$|)) {
+  elsif (($clean, $flags) = ($regex =~ m|^/(.*)/([ics]*)$|mx)) {
     # slash-delimited, with flags.
-    $self->delim("/");
+    $self->delim('/');
     $self->regex($clean);
     $self->metaquote(1);
     $self->flags($flags);
   }
   else {
     # random string. We'll metaquote it and put slashes around it.
-    $self->delim("/");
+    $self->delim('/');
     $self->regex($regex);
     $self->metaquote(1);
   }
-  $self->flags("") unless defined $self->flags;
+
+  if (! defined $self->flags) {
+    $self->flags(q{});
+  }
 
   # If we got this far, it's valid.
   return 1;
@@ -149,14 +167,14 @@ sub _render_regex {
   my $delim = $self->delim;
   my $flags = $self->flags;
   if (!defined $flags) {
-    $self->flags("");
-    $flags = "";
+    $self->flags(q{});
+    $flags = q{};
   }
 
   if ($self->metaquote) {
     $regex = "\\Q$regex\\E";
   }
-  if ($delim ne "/") {
+  if ($delim ne '/') {
     $regex = "m$delim$regex$delim";
   }
   else {
@@ -165,9 +183,9 @@ sub _render_regex {
   if ($flags) {
     $regex .= $flags;
   }
-  if ($regex =~ /\\/) {
+  if ($regex =~ /\\/mx) {
     # Have to escape backslashes.
-    $regex =~ s/\\/\\\\/g;
+    $regex =~ s/\\/\\\\/mxg;
   }
 
   return $regex;
@@ -177,27 +195,27 @@ sub as_tests {
   my ($self) = @_;
   my @tests;
   my $current = 0;
-  my $flags = $self->flags() || "";
+  my $flags = $self->flags() || q{};
   my $uri = $self->uri;
 
   if (defined $uri and
-      defined (my $regex =   $self->regex) and
-      defined (my $delim =   $self->delim) and
-      defined (my $comment = $self->comment)) {
-    if (defined ($tests[$current] = $test_type{$self->kind})) {
+      defined(my $regex =   $self->regex) and                 
+      defined(my $delim =   $self->delim) and               
+      defined(my $comment = $self->comment)) {                  ##no critic
+    if (defined($tests[$current] = $test_type{$self->kind})) {  ##no critic
        $self->test_count($self->test_count()+1);
-       $tests[$current] =~ s/<uri>/$uri/g;
-       $tests[$current] =~ s/<delim>/$delim/g;
+       $tests[$current] =~ s/<uri>/$uri/mxg;
+       $tests[$current] =~ s/<delim>/$delim/mxg;
        if ($self->metaquote) {
-         $tests[$current] =~ s/<regex>/\Q$regex\E/g;
+         $tests[$current] =~ s/<regex>/\Q$regex\E/mxg;
        }
        else {
-         $tests[$current] =~ s/<regex>/$regex/g;
+         $tests[$current] =~ s/<regex>/$regex/mxg;
        }
-       $tests[$current] =~ s/<flags>/$flags/g;
-       $tests[$current] =~ s/<comment>/$comment/;
+       $tests[$current] =~ s/<flags>/$flags/mxg;
+       $tests[$current] =~ s/<comment>/$comment/mx;
        my $qregex = $self->_render_regex();
-       $tests[$current] =~ s/<qmregex>/$qregex/e;
+       $tests[$current] =~ s/<qmregex>/$qregex/emx;
     }
   }
 
@@ -208,12 +226,13 @@ sub as_tests {
       next if ! $plugin->can('per_test');
 
       my ($added_tests, @per_test_code) = $plugin->per_test($self);
-      my $method = $added_tests ? "stack_test" : "stack_code";
+      my $method = $added_tests ? 'stack_test' : 'stack_code';
       for my $code_line (@per_test_code) {
         $app->$method($code_line);
       }
     }
   }
+  return;
 }
 
 1; # Magic true value required at end of module

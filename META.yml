@@ -1,7 +1,7 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         App-SimpleScan
-version:      1.12
+version:      1.15
 version_from: lib/App/SimpleScan.pm
 installdirs:  site
 requires:
@@ -10,6 +10,7 @@ requires:
     IO::ScalarArray:               2.110
     Regexp::Common:                0
     Scalar::Util:                  0
+    Sub::Installer:                0
     Test::Differences:             0
     Test::More:                    0
     Test::WWW::Simple:             0.18

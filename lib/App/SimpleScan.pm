@@ -1,12 +1,12 @@
 package App::SimpleScan;
 
-our $VERSION = '1.12';
-$|++;
-
 use warnings;
 use strict;
-use Carp;
+use English qw(-no_match_vars);
 
+our $VERSION = '1.15';
+
+use Carp;
 use Getopt::Long;
 use Regexp::Common;
 use Scalar::Util qw(blessed);
@@ -16,13 +16,13 @@ use Test::WWW::Simple;
 use App::SimpleScan::TestSpec;
 use Text::Balanced qw(extract_quotelike extract_multiple);
 
-my $reference_mech = new WWW::Mechanize::Pluggable;
-
-
 use Module::Pluggable search_path => [qw(App::SimpleScan::Plugin)];
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(tests test_count));
+
+my $reference_mech = new WWW::Mechanize::Pluggable;
+$|++;                                                   ##no critic
 
 use App::SimpleScan::TestSpec;
 
@@ -91,15 +91,15 @@ sub create_tests {
 
   $self->transform_test_specs;
   $self->finalize_tests;
-  return join("", @{$self->tests});
+  return join q{}, @{$self->tests};
 }
 
 # If the tests should be run, run them.
 # Return any exceptions to the caller.
 sub execute {
   my ($self, $code) = @_;
-  eval $code if ${$self->run};
-  return $@;
+  eval $code if ${$self->run};                         ##no critic
+  return $EVAL_ERROR;
 }
 
 # Actually use the object.
@@ -126,7 +126,9 @@ sub go {
     }
   }
 
-  print $code,"\n" if ${$self->generate};
+  if (${$self->generate}) {
+    print $code,"\n";
+  }
 
   return $exit_code;
 }
@@ -135,23 +137,32 @@ sub go {
 # Turn these from test specs into test code.
 sub transform_test_specs {
   my ($self) = @_;
-  local $_;
-  while(defined( $_ = $self->next_line )) {
+  local $_;                                             ##no critic
+  while(defined($_ = $self->next_line)) {               ##no critic
     chomp;
     # Discard comments.
-    /^#/ and next;
+    /^\#/mx and next;
 
     # Discard blank lines.
-    /^\s*$/ and next;
+    /^\s*$/mx and next;
 
     # Handle pragmas.
-    /^%%\s*(.*?)(((:\s+|\s+)(.*)$)|$)/ and do {
+    /^%%      # pragma signifier
+     \s*      # optional space
+     (.*?)    # arbitrary identifier
+     (        # either ...
+      (
+       (:\s+|\s+)   # an optional colon, and whitespace
+       (.*)$        # then a optional value
+      )|            # ... or
+      $             # nothing at all
+     )/mx and do {
       if (my $code = $self->pragma($1)) {
         $code->($self,$5);
       }
       else {
         # It's a substitution if it has no other meaning.
-        if (defined($5)) {
+        if (defined $5) {
           my $var = $1;
           my @data = $self->expand_backticked($5);
           my ($status, $message) = $self->_check_dependencies($var, @data);
@@ -160,7 +171,7 @@ sub transform_test_specs {
           }
           else {
             my @items = split $message;
-            my $between = (@items < 3) ? "between" : "among";
+            my $between = (@items < 3) ? 'between' : 'among';
             $self->stack_test( qw(fail "Cannot add substitution for $var: dependency loop $between $message";\n));
           }
         }
@@ -195,21 +206,21 @@ sub transform_test_specs {
     # test spec in an overriding method.
     $self->set_current_spec($item);
 
-    if ($item->syntax_error) {
-      $self->stack_code(<<EOS) if ${$self->warn};
+    if ($item->syntax_error and ${$self->warn}) {
+      $self->stack_code(<<"END_MSG");
 # @{[$item->raw]}
 # Possible syntax error in this test spec
-EOS
-                     
+END_MSG
     }
     else {
       $item->as_tests;
-      local $_ = $item ->raw;
-      s/\n//;
+      local $_ = $item ->raw;                           ##no critic
+      s/\n//mx;
     }
     # Drop the spec (there isn't one active now).
     $self->set_current_spec();
   }
+  return;
 }
 
 # Calls each plugin's test_modules method
@@ -229,17 +240,12 @@ sub finalize_tests {
   my @tests = @{$self->tests};
   my @prepends;
   foreach my $plugin (__PACKAGE__->plugins) {
-    my @modules = $plugin->test_modules if $plugin->can('test_modules');
-    push @prepends, "use $_;\n" foreach @modules;
+    if ($plugin->can('test_modules')) {
+      foreach my $module ($plugin->test_modules) {
+        push @prepends, "use $module;\n";
+      }
+    }
   }
-  unshift @prepends, 
-    (
-      "use Test::More tests=>" . $self->test_count . ";\n",
-      "use Test::WWW::Simple;\n",
-      "use strict;\n",
-      "\n",
-    );
-  
   # Handle conditional user agent initialization.
   # This was added because some servers (e.g., WAP
   # servers) refuse connections from known user agents,
@@ -251,9 +257,19 @@ sub finalize_tests {
   if (!$self->no_agent) {
     push @prepends, qq(mech->agent_alias("Windows IE 6");\n);
   }
+ 
+  # Add the boilerplate teting stuff. 
+  unshift @prepends, 
+    (
+      "use Test::More tests=>@{[$self->test_count]};\n",
+      "use Test::WWW::Simple;\n",
+      "use strict;\n",
+      "\n",
+    );
   
   
   $self->tests( [ @prepends, @tests ] );
+  return;
 }
 
 #######################
@@ -262,61 +278,61 @@ sub finalize_tests {
 # Handle backticked values in substitutions.
 sub expand_backticked {
   my ($self, $text) = @_;
+  local $_;                                              ##no critic
 
   # Extract strings and backticked strings and just plain words.
   my @data;
-  {
-    # extract_quotelike complains if no quotelike strings were found.
-    # Shut this up by adding one and throwing it away after. Sadly, 
-    # 'no warnings' will NOT shut it up.
+  # extract_quotelike complains if no quotelike strings were found.
+  # Shut this up by adding one and throwing it away after. Sadly, 
+  # 'no warnings' will NOT shut it up.
 
-    # The result of the extract multiple is to give us the whitespace
-    # between words and strings with leading whitespace before the
-    # first word of quotelike strings. Confused? This is what happens:
-    #
-    # for the string
-    #   a test `backquoted' "just quoted"
-    # we get
-    #   'a'
-    #   ' '
-    #  'test'
-    #  ' `backquoted'
-    #  `backquoted`
-    #  ' '
-    #  ' "just'
-    #  '"just quoted"'
-    #
-    # The grep removes all the strings starting with whitespace, leaving
-    # only the things we actually want.
-    @data = grep { /^\s/ ? () : $_ } 
-            extract_multiple($text . qq( '***-Your-string-may-have-mismatched-quotes-or-newlines-in-it-***'), 
-                             [qr/[^'"`\s]+/,\&extract_quotelike]);
-    # Throw away the garbage.
-    pop @data;
-    if (grep { $_ eq qq(***-Your-string-may-have-mismatched-quotes-or-newlines-in-it-***)} @data) {
-      $self->stack_code(<<EOS) if ${$self->warn};
+  # The result of the extract multiple is to give us the whitespace
+  # between words and strings with leading whitespace before the
+  # first word of quotelike strings. Confused? This is what happens:
+  #
+  # for the string
+  #   a test `backquoted' "just quoted"
+  # we get
+  #   'a'
+  #   ' '
+  #  'test'
+  #  ' `backquoted'
+  #  `backquoted`
+  #  ' '
+  #  ' "just'
+  #  '"just quoted"'
+  #
+  # The grep removes all the strings starting with whitespace, leaving
+  # only the things we actually want.
+  @data = grep { /^\s/mx ? () : $_ } 
+          extract_multiple($text . q( '***-Your-string-may-have-mismatched-quotes-or-newlines-in-it-***'), 
+                           [qr/[^'"`\s]+/,\&extract_quotelike]);
+  # Throw away the garbage.
+  pop @data;
+  if (grep { $_ eq q(***-Your-string-may-have-mismatched-quotes-or-newlines-in-it-***)} @data) {
+    if (${$self->warn}) {
+      $self->stack_code(<<"END_MSG") 
 # $text
 # This line has an unmatched quote of some kind and was skipped.
 # Subsequent lines may have a problem if this was because of a newline.
-EOS
-    # Remove garbage indicator.
-    @data = grep {$_ ne qq(***-Your-string-may-have-mismatched-quotes-or-newlines-in-it-***)} @data;
+END_MSG
     }
+    # Remove garbage indicator.
+    @data = grep {$_ ne q(***-Your-string-may-have-mismatched-quotes-or-newlines-in-it-***)} @data;
   } 
 
-  local $_;
   my @result;
   for (@data) {
     # eval a backticked string and split it the same way.
-    if (/^`(.*)$`/) {
-      push @result, $self->expand_backticked(eval $_);
+    if (/^`(.*)$`/mx) {
+      push @result, $self->expand_backticked(eval $_);      ##no critic
     }
     # Double-quoted: eval it.
-    elsif (/^"(.*)"$/) {
-      push @result, eval($1);
+    elsif (/^"(.*)"$/mx) {
+      push @result, eval($1);                               ##no critic
     }
     # Single-quoted: remove quotes.
-    elsif (/^'(.*)'$/) {
+    elsif (/^'(.*)'$/mx) {
       push @result, $1;
     }
     # Not quoted at all: leave alone
@@ -330,6 +346,7 @@ EOS
 sub set_current_spec {
   my ($self, $testspec) = @_;
   $self->{CurrentTestSpec} = $testspec;
+  return $testspec;
 }
 
 sub get_current_spec {
@@ -349,8 +366,12 @@ sub _delete_substitution {
 # Get all active substitutions.
 sub _var_names {
   my ($self) = @_;
-  keys %{$self->{Substitution_data}} 
-    if defined $self->{Substitution_data};
+  if (defined $self->{Substitution_data}) {
+    return keys %{$self->{Substitution_data}};
+  }
+  else {
+    return;
+  }
 }
 
 # If the current thing has substitutions in it,
@@ -359,14 +380,14 @@ sub _var_names {
 sub _queue_var_names {
   my($self, $line) = @_;
   my $results = $self->_substitute($line, $self->_var_names);
-  if (@$results != 1) {
+  if (@{ $results } != 1) {
     # substitutions definitely happened
-    $self->queue_lines(@$results);
+    $self->queue_lines(@{ $results });
     return 1;
   }
   elsif ($results->[0] ne $line) {
     # single line is different, so substitution(s) happened
-    $self->queue_lines(@$results);
+    $self->queue_lines(@{ $results });
     return 1;
   }
   else {
@@ -407,8 +428,8 @@ sub _substitute {
       for my $var_name (@var_names) {
         my $current_value = $current_value_of{$var_name};
         my $var_inserted;
-        $var_inserted ||= ($new_line =~ s/>$var_name</$current_value/g);
-        $var_inserted ||= ($new_line =~ s/<$var_name>/$current_value/g);
+        $var_inserted ||= ($new_line =~ s/>$var_name</$current_value/mxg);
+        $var_inserted ||= ($new_line =~ s/<$var_name>/$current_value/mxg);
         if ($var_inserted) {
           $change_count_for{$current_value}++;
           $line_changed++;
@@ -422,7 +443,6 @@ sub _substitute {
     # we get a different substitution key for each unique set of values.
     # this makes sure we get all of the distinct possibilities and 
     # eliminate duplicates.
-    local $_;
     my $alteration_key = "@{[sort keys %change_count_for]}";
     $alteration_for{$alteration_key} = $new_line;
   }
@@ -433,9 +453,9 @@ sub _comb_index {
   my($self, $index, %item_counts) = @_;
   my @indexes = $self->_comb($index, %item_counts);
   my $i = 0;
-  local $_;
   my %selection_for;
   my @ordered_keys = sort keys %item_counts;
+  local $_;                                                ##no critic
   my %base_map_of = map { $_ => $i++ } @ordered_keys;
   for my $var (@ordered_keys) {
     $selection_for{$var} = $self->_substitution_data($var)->[$indexes[$base_map_of{$var}]];
@@ -451,13 +471,15 @@ sub _comb {
 
   # All indexes must start at zero.
   my $number_of_items = scalar keys %item_counts;
-  push @comb, 0 while $number_of_items--;
+  foreach my $item (keys %item_counts) {
+    push @comb, 0;
+  }
 
   # convert from base 10 to the derived multi-base number
   # that maps into the indexes into the possible values.
   while ($index) {
     $comb[$place] = $index % $item_counts{$base_order[$place]};
-    $index = int($index/$item_counts{$base_order[$place]});
+    $index = int $index/$item_counts{$base_order[$place]};
     $place++;
   }
   return @comb;
@@ -468,7 +490,9 @@ sub _comb {
 # - getter needs a name, returns a list of values.
 sub _substitution_value {
   my ($self, $pragma_name, @pragma_values) = @_;
-  die "No pragma specified" unless defined $pragma_name;
+  if (! defined $pragma_name) {
+    die 'No pragma specified';
+  }
   if (@pragma_values) {
     $self->{Substitution_data}->{$pragma_name} = \@pragma_values;
   }
@@ -482,12 +506,16 @@ sub _substitution_value {
 # substitutions in the input).
 sub _substitution_data {
   my ($self, $pragma_name, @pragma_values) = @_;
-  croak "No pragma specified" unless defined $pragma_name;
+  if (! defined $pragma_name) {
+    croak 'No pragma specified';
+  }
 
   if (@pragma_values) {
-    if (${$self->override} and $self->{Predefs}->{$pragma_name}) {
-      $self->stack_code(qq(diag "Substitution $pragma_name not altered to '@pragma_values'";\n))
-        if ${$self->debug};
+    if (${$self->override} and 
+        $self->{Predefs}->{$pragma_name}) {
+      if (${$self->debug}) {
+        $self->stack_code(qq(diag "Substitution $pragma_name not altered to '@pragma_values'";\n));
+      }
     }
     else {
       $self->_substitution_value($pragma_name, @pragma_values);
@@ -518,32 +546,35 @@ sub handle_options {
   $self->{Options}->{'define=s%'} = ($self->{Predefs} = {});
 
   foreach my $plugin (__PACKAGE__->plugins) {
-    $self->install_options($plugin->options)
-      if $plugin->can('options');
+    if ($plugin->can('options')) {
+      $self->install_options($plugin->options);
+    }
   }
 
   $self->parse_command_line;
 
   foreach my $plugin (__PACKAGE__->plugins) {
-    $plugin->validate_options($self) if
-      $plugin->can('validate_options');
+    if ($plugin->can('validate_options')) {
+      $plugin->validate_options($self);
+    }
   }
 
   # If anything was predefined, save it in the substitutions.
   for my $def (keys %{$self->{Predefs}}) {
     $self->_substitution_value($def, 
-                            (split /\s+/, $self->{Predefs}->{$def}));
+                            (split /\s+/mx, $self->{Predefs}->{$def}));
   }
 
   if (${$self->no_agent}) {
-    $self->_substitution_value("agent", "WWW::Mechanize::Pluggable");
+    $self->_substitution_value('agent', 'WWW::Mechanize::Pluggable');
   }
   else {
-    $self->_substitution_value("agent", "Windows IE 6");
+    $self->_substitution_value('agent', 'Windows IE 6');
     $self->stack_code("mech->agent_alias('Windows IE 6');\n");
   }
   
   $self->app_defaults;
+  return;
 }
 
 # Set up application defaults.
@@ -562,8 +593,11 @@ sub app_defaults {
   }
 
   # if --cache was supplied, turn caching on.
-  $self->stack_code(qq(cache;\n))
-    if ${$self->autocache};
+  if (${$self->autocache}) {
+    $self->stack_code(qq(cache;\n));
+  }
+
+  return;
 }
 
 # Transform the options specs (whether from here or
@@ -571,7 +605,9 @@ sub app_defaults {
 # set/get the option values.
 sub install_options {
   my ($self, @options) = @_;
-  $self->{Options} = {} unless defined $self->{Options};
+  if (! defined $self->{Options}) {
+    $self->{Options} = {};
+  }
 
   # precompilation versions of the possible methods. These
   # get compiled right when we need them, causing $option
@@ -599,25 +635,30 @@ sub install_options {
     # swap them to underscores. (This is okay because
     # no one outside this module should be trying to
     # call these methods directly.)
-    $option =~ s/-/_/g;
+    $option =~ s/-/_/mxg;
 
     $self->{Options}->{$option} = $receiver;
 
     # Ensure that the variables have been cleared if we create another
     # App::SimpleScan object (normally we won't, but our tests do).
-    $$receiver = undef;
+    ${ $receiver } = undef;
 
     # Create method if it doesn't exist.
-    unless ($self->can($option)) {
-      no strict 'refs';
-      *{'App::SimpleScan::'.$option} = 
-        sub { 
-              my ($self, $value) = @_;
-              $self->{Options}->{$option} = $value if defined $value;
-              $self->{Options}->{$option};
-            };
+    if (! $self->can($option)) {
+      use Sub::Installer;
+      __PACKAGE__->install_sub(
+        { $option => sub { 
+                           my ($self, $value) = @_;
+                           if (defined $value) {
+                             $self->{Options}->{$option} = $value;
+                           }
+                           return $self->{Options}->{$option};
+                         }
+        }
+      ); 
     }
   }
+  return;
 }
 
 # Load all the plugins.
@@ -626,22 +667,24 @@ sub _load_plugins {
 
   # Load plugins.
   foreach my $plugin (__PACKAGE__->plugins) {
-    eval "use $plugin";
-    $@ and die "Plugin $plugin failed to load: $@\n";
+    eval "use $plugin";                                      ##no critic
+    $EVAL_ERROR and die "Plugin $plugin failed to load: $EVAL_ERROR\n";
   }
 
   # Install source filters
   $self->{Filters} = [];
   foreach my $plugin (__PACKAGE__->plugins) {
-    push @{$self->{Filters}}, $plugin->filters() if
-      $plugin->can('filters');
+    if ($plugin->can('filters')) {
+      push @{$self->{Filters}}, $plugin->filters();
+    }
   }
+  return;
 }
 
 # Call Getopt::Long to parse the command line.
 sub parse_command_line {
   my ($self) = @_;
-  GetOptions(%{$self->{Options}});
+  return GetOptions(%{$self->{Options}});
 }
 
 # Install any pragmas supplied by plugins.
@@ -653,17 +696,18 @@ sub install_pragma_plugins {
   foreach my $plugin (@local_pragma_support, 
                       __PACKAGE__->plugins) {
     if (ref $plugin eq 'ARRAY') {
-      $self->pragma(@$plugin);
+      $self->pragma(@{ $plugin });
     }
     elsif ($plugin->can('pragmas')) {
       foreach my $pragma_spec ($plugin->pragmas) {
-        $self->pragma(@$pragma_spec);
+        $self->pragma(@{ $pragma_spec });
         if ($plugin->can('init')) {
           $plugin->init($self);
         }
       }
     }
   }
+  return;
 }
 
 ########################
@@ -673,9 +717,10 @@ sub install_pragma_plugins {
 sub pragma {
   my ($self, $name, $pragma) = @_;
   die "You forgot the pragma name\n" if ! defined $name;
-  $self->{Pragma}->{$name} = $pragma
-    if defined $pragma;
-  $self->{Pragma}->{$name};
+  if (defined $pragma) {
+    $self->{Pragma}->{$name} = $pragma;
+  }
+  return $self->{Pragma}->{$name};
 }
 
 # %%agent pragma handler. Verify that the argument
@@ -684,24 +729,28 @@ sub pragma {
 sub _do_agent {
   my ($self, $rest) = @_;
   $rest = reverse $rest;
-  my ($maybe_agent) = ($rest =~/^\s*(.*)$/);
+  my ($maybe_agent) = ($rest =~/^\s*(.*)$/mx);
   
   $maybe_agent = reverse $maybe_agent; 
-  $self->_substitution_data("agent", $maybe_agent)
-    if grep { $_ eq $maybe_agent } $reference_mech->known_agent_aliases;
+  if (grep { $_ eq $maybe_agent } $reference_mech->known_agent_aliases) {
+    $self->_substitution_data('agent', $maybe_agent)
+  }
   $self->stack_code(qq(user_agent("$maybe_agent");\n));
+  return;
 }
 
 # %%cache - turn on Test::WWW::Simple's cache.
 sub _do_cache {
   my ($self,$rest) = @_;
   $self->stack_code("cache();\n");
+  return;
 }
 
 # %%nocache - turn off Test::WWW::Simple's cache.
 sub _do_nocache {
   my ($self,$rest) = @_;
   $self->stack_code("no_cache();\n");
+  return;
 }
 
 ##########################
@@ -717,11 +766,13 @@ sub next_line {
     $next_line = shift @{ $self->{InputQueue} };
   }
   else {
-    local $_;
+    local $_;                                              ##no critic
     $next_line = $_ = <>;
     if (defined $_) {
-      s/\n//;
-      print STDERR "# |Processing '$_' (line $.)\n" if $run_status;
+      s/\n//mx;
+      if ($run_status) {
+        print STDERR "# |Processing '$_' (line $.)\n";
+      }
     }
   }
   $self->last_line($next_line);
@@ -732,8 +783,9 @@ sub next_line {
 # if they want to.
 sub last_line {
   my ($self, $line) = @_;
-  $self->{CurrentLine} = $line
-    if defined $line;
+  if (defined $line) {
+    $self->{CurrentLine} = $line;
+  }
   return $self->{CurrentLine};
 }
 
@@ -742,6 +794,7 @@ sub last_line {
 sub queue_lines {
   my ($self, @lines) = @_;
   $self->{InputQueue} = [ @lines, @{ $self->{InputQueue} } ];
+  return;
 }
 
 ###########################
@@ -753,6 +806,7 @@ sub stack_code {
   my ($self, @code) = @_;
   my @old_code = @{$self->tests};
   $self->tests([@old_code, @code]);
+  return
 }
 
 # stack_test adds code to the array holding
@@ -767,7 +821,7 @@ sub stack_test {
     @code = $filter->($self, @code);
   }
   $self->stack_code(@code);
-  $self->test_count($self->test_count()+1);
+  return $self->test_count($self->test_count()+1);
 }
 
 ##################################
@@ -788,9 +842,10 @@ sub stack_test {
 
 sub _check_dependencies {
   my ($self, $child, @parents) = @_;
-  @parents = grep { /^<.*>$/ } @parents;
-  return 1, "no dependencies" unless @parents;
-
+  @parents = grep { /^<.*>$/mx } @parents;
+  if (! @parents) {
+    return 1, 'no dependencies';
+  }
   $self->_depend($child, @parents);
   
   return $self->_tsort();
@@ -809,18 +864,21 @@ sub _depend {
   for my $parent (@parents) {
     push @{ $self->{PragmaDepend}->{$parent} }, $item;
   }
+  return;
 }
 
 sub _all_dependencies {
   my ($self, @items) = @_;
   # We start by accumulating the dependencies of 
   # the item(s) we were handed.
-  local $_;
   my %accumulated;
-  $accumulated{$_} = 1 foreach (@items);
+
   for my $item (@items) {
+    $accumulated{$item} = 1;
     my @deps = @{ $self->_depend($item) };
-    $accumulated{$_} = 1 foreach (@deps);
+    foreach my $dep (@deps) {
+      $accumulated{$dep} = 1;
+    }
   }
 
   # No dependencies; empty list.
@@ -837,9 +895,9 @@ sub _all_dependencies {
 sub _tsort {
   my $self = shift;
 
-  my %pairs;	# all pairs ($l, $r)
-  my %npred;	# number of predecessors
-  my %succ;	# list of successors
+  my %pairs; # all pairs ($l, $r)
+  my %npred; # number of predecessors
+  my %succ;  # list of successors
 
   for my $parent ($self->_depend) {
     for my $child (@{ $self->_depend($parent) }) {
@@ -858,7 +916,9 @@ sub _tsort {
   while (@list) {
     push @order, ($_ = pop @list);
     foreach my $child (@{$succ{$_}}) {
-      unshift @list, $child unless --$npred{$child};
+      if (! --$npred{$child}) {
+        unshift @list, $child;
+      }
     }
   }
 
@@ -866,10 +926,15 @@ sub _tsort {
 
   my @looped;
   for (keys %npred) {
-    push @looped, $_ if $npred{$_};
+    if ($npred{$_}) {
+     push @looped, $_;
+    }
   }
-  @looped ? return(0, "@looped")
-          : return(1, "@order");
+
+  return(
+    @looped ? (0, "@looped")
+            : (1, "@order")
+  );
 }
 
 1; # Magic true value required at end of module
